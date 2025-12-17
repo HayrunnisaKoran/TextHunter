@@ -1,0 +1,171 @@
+# =============================================================================
+# TextHunter - .gitignore
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# .NET / Visual Studio
+# -----------------------------------------------------------------------------
+bin/
+obj/
+*.dll
+*.exe
+*.pdb
+*.cache
+*.user
+*.suo
+*.userosscache
+.vs/
+*.vsidx
+*.vspscc
+*.nupkg
+project.lock.json
+.nuget/
+packages/
+
+# Build results
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+build/
+[Bb]in/
+[Oo]bj/
+
+# User-specific files
+*.rsuser
+*.suo
+*.user
+*.sln.docstates
+
+# .NET Core
+.dotnet/
+*.deps.json
+*.runtimeconfig.json
+
+# -----------------------------------------------------------------------------
+# Python
+# -----------------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+ENV/
+env/
+.venv/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# pyenv
+.python-version
+
+# pytest
+.pytest_cache/
+
+# Coverage
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+*.cover
+
+# mypy
+.mypy_cache/
+
+# -----------------------------------------------------------------------------
+# IDE / Editörler
+# -----------------------------------------------------------------------------
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.project
+.pydevproject
+.settings/
+
+# -----------------------------------------------------------------------------
+# İşletim Sistemi Dosyaları
+# -----------------------------------------------------------------------------
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# -----------------------------------------------------------------------------
+# Environment / Secrets
+# -----------------------------------------------------------------------------
+.env
+.env.local
+.env.*.local
+*.env
+secrets.json
+appsettings.local.json
+
+# -----------------------------------------------------------------------------
+# Logs
+# -----------------------------------------------------------------------------
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# -----------------------------------------------------------------------------
+# Veri Dosyaları (Büyük dosyalar - GitHub'a yüklenmemeli)
+# Gerekirse bu satırları yoruma alabilirsiniz
+# -----------------------------------------------------------------------------
+# Data/raw/*.csv
+# Data/raw/*.json
+# Data/cleaned/*.csv
+# Data/cleaned/*.json
+# Data/processed/*.csv
+# Data/processed/*.json
+
+# -----------------------------------------------------------------------------
+# ML Modelleri (Büyük dosyalar)
+# -----------------------------------------------------------------------------
+MLModels/*.pkl
+MLModels/*.joblib
+MLModels/*.h5
+MLModels/*.pt
+MLModels/*.pth
+
+# -----------------------------------------------------------------------------
+# Temp / Cache
+# -----------------------------------------------------------------------------
+*.tmp
+*.temp
+*.bak
+.cache/
+temp/
+tmp/
+
+# -----------------------------------------------------------------------------
+# Boş klasörler için .gitkeep dosyalarını koru
+# -----------------------------------------------------------------------------
+!**/.gitkeep
+
