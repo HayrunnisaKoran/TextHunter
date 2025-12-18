@@ -1,0 +1,89 @@
+@model TextHunter.Models.ComparisonViewModel
+@{
+    ViewData["Title"] = "Model Comparison";
+}
+
+<div class="container mt-4">
+    <h1 class="text-center mb-4">Model Consistency Checker</h1>
+    <p class="text-center text-muted mb-4">See how each model classifies the same input text.</p>
+
+    <div class="row">
+        <div class="col-md-6">
+            <form asp-action="ModelComparison" method="post">
+                <div class="mb-3">
+                    <label for="Text" class="form-label">Enter your text</label>
+                    <textarea asp-for="Text" class="form-control" rows="10" placeholder="Enter your text here..."></textarea>
+                    <span asp-validation-for="Text" class="text-danger"></span>
+                </div>
+
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-outline-secondary" onclick="clearText()">Clear</button>
+                    <button type="submit" class="btn btn-primary flex-grow-1">Submit</button>
+                </div>
+            </form>
+        </div>
+
+        <div class="col-md-6">
+            <h3>Model Predictions</h3>
+            @if (Model.Results != null && Model.Results.Any())
+            {
+                <div class="table-responsive mt-3">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Model</th>
+                                <th>Prediction</th>
+                                <th>Human %</th>
+                                <th>AI %</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var result in Model.Results)
+                            {
+                                <tr>
+                                    <td>@result.Value.ModelName</td>
+                                    <td>
+                                        <span class="badge @(result.Value.Prediction == "Human" ? "bg-success" : "bg-danger")">
+                                            @result.Value.Prediction
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <div class="progress" style="height: 20px; width: 100px;">
+                                            <div class="progress-bar bg-success" 
+                                                 style="width: @(result.Value.HumanProbability * 100)%">
+                                                @((result.Value.HumanProbability * 100).ToString("F1"))%
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="progress" style="height: 20px; width: 100px;">
+                                            <div class="progress-bar bg-danger" 
+                                                 style="width: @(result.Value.AIProbability * 100)%">
+                                                @((result.Value.AIProbability * 100).ToString("F1"))%
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+            else
+            {
+                <div class="alert alert-info mt-3">
+                    Enter text and submit to see predictions from all models.
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        function clearText() {
+            document.getElementById('Text').value = '';
+        }
+    </script>
+}
+
