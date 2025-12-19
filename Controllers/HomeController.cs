@@ -1,7 +1,9 @@
 using System.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
+using TextHunter.Data;
 using TextHunter.Models;
 using TextHunter.Services;
+using Microsoft.AspNetCore.Http;
 
 namespace TextHunter.Controllers
 {
@@ -9,11 +11,12 @@ namespace TextHunter.Controllers
     {
         private readonly ILogger<HomeController> _logger;
         private readonly IModelPredictionService _predictionService;
-
-        public HomeController(ILogger<HomeController> logger, IModelPredictionService predictionService)
+        private readonly AppDbContext _context;
+        public HomeController(ILogger<HomeController> logger, IModelPredictionService predictionService, AppDbContext context)
         {
             _logger = logger;
             _predictionService = predictionService;
+            _context = context; // Veritabanı bağlantımız hazır!
         }
 
         public IActionResult Index()
@@ -115,10 +118,155 @@ namespace TextHunter.Controllers
             return View(model);
         }
 
+        public IActionResult Profile()
+        {
+            
+            
+            // İleride buraya veritabanından kullanıcı bilgilerini çekme kodu gelecek.
+            return View();
+        }
+
+        public IActionResult Settings()
+        {
+            return View();
+        }
+
         public IActionResult Privacy()
         {
             return View();
         }
+
+        public IActionResult Login()
+        {
+            return View();
+
+            // Giriş mantığı burada olacak (Veritabanı kontrolü vb.)
+            TempData["SuccessMessage"] = "Başarıyla giriş yaptınız!";
+            return RedirectToAction("Index");
+        }
+
+        [HttpPost]
+        public IActionResult Login(string Email, string Password)
+        {
+            // 1. Input validasyonu
+            if (string.IsNullOrWhiteSpace(Email))
+            {
+                ModelState.AddModelError("Email", "E-posta gereklidir.");
+            }
+            if (string.IsNullOrWhiteSpace(Password))
+            {
+                ModelState.AddModelError("Password", "Şifre gereklidir.");
+            }
+
+            if (!ModelState.IsValid)
+            {
+                return View();
+            }
+
+            // 2. Kullanıcının şifresini hashle (Veritabanındakiyle karşılaştırmak için)
+            string hashedPassword = HashPassword(Password);
+
+            // 3. Veritabanında bu email ve şifreye sahip kullanıcı var mı?
+            var user = _context.Users.FirstOrDefault(u => u.Email == Email && u.PasswordHash == hashedPassword);
+
+            if (user != null)
+            {
+                // GİRİŞ BAŞARILI
+                // Session'a kullanıcı bilgilerini kaydet
+                HttpContext.Session.SetInt32("UserId", user.Id);
+                HttpContext.Session.SetString("UserFullName", user.FullName);
+                HttpContext.Session.SetString("UserEmail", user.Email);
+                
+                TempData["SuccessMessage"] = $"Hoş geldiniz, {user.FullName}!";
+                return RedirectToAction("Index");
+            }
+            else
+            {
+                // GİRİŞ HATALI
+                ModelState.AddModelError("", "E-posta veya şifre hatalı.");
+                return View();
+            }
+        }
+
+        public IActionResult Register()
+        {
+            return View();
+            TempData["SuccessMessage"] = "Basariyla kayit yaptiniz!";
+            return RedirectToAction("Index");
+
+        }
+
+
+        [HttpPost]
+        public async Task<IActionResult> Register(string FullName, string Email, string Password)
+        {
+            // 1. Input validasyonu
+            if (string.IsNullOrWhiteSpace(FullName))
+            {
+                ModelState.AddModelError("FullName", "Ad Soyad gereklidir.");
+            }
+            if (string.IsNullOrWhiteSpace(Email))
+            {
+                ModelState.AddModelError("Email", "E-posta gereklidir.");
+            }
+            if (string.IsNullOrWhiteSpace(Password))
+            {
+                ModelState.AddModelError("Password", "Şifre gereklidir.");
+            }
+
+            if (!ModelState.IsValid)
+            {
+                return View();
+            }
+
+            // 2. Email kontrolü (Aynı email ile iki kayıt olmasın - Veri Tutarlılığı)
+            if (_context.Users.Any(u => u.Email == Email))
+            {
+                ModelState.AddModelError("Email", "Bu e-posta adresi zaten kullanımda.");
+                return View();
+            }
+
+            // 3. Yeni kullanıcı nesnesi oluşturma
+            var newUser = new User
+            {
+                FullName = FullName,
+                Email = Email,
+                PasswordHash = HashPassword(Password), // Güvenli şifreleme!
+                CreatedAt = DateTime.UtcNow // PostgreSQL için UTC zaman kullan
+            };
+
+            // 4. Veritabanına kaydetme
+            _context.Users.Add(newUser);
+            await _context.SaveChangesAsync();
+
+            // 4. Geri bildirim ve yönlendirme
+            TempData["SuccessMessage"] = "Hesabınız başarıyla oluşturuldu! Şimdi giriş yapabilirsiniz.";
+            return RedirectToAction("Login");
+        }
+
+        public IActionResult Logout()
+        {
+            // Session'ı temizle
+            HttpContext.Session.Clear();
+            
+            TempData["SuccessMessage"] = "Başarıyla çıkış yaptınız!";
+            return RedirectToAction("Index");
+        }
+
+        private string HashPassword(string password) //sifreleme adımı
+        {
+            if (string.IsNullOrEmpty(password))
+            {
+                throw new ArgumentException("Şifre boş olamaz.", nameof(password));
+            }
+            
+            using (var sha256 = System.Security.Cryptography.SHA256.Create())
+            {
+                var bytes = sha256.ComputeHash(System.Text.Encoding.UTF8.GetBytes(password));
+                return Convert.ToBase64String(bytes);
+            }
+        }
+
 
         [ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
         public IActionResult Error()

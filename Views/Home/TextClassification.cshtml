@@ -1,36 +1,37 @@
-@model TextHunter.Models.ClassificationViewModel
+﻿@model TextHunter.Models.ClassificationViewModel
 @{
     ViewData["Title"] = "Text Classification";
 }
 
 <div class="container mt-4">
-    <h1 class="text-center mb-4">Text Classification</h1>
-    <p class="text-center text-muted mb-4">Classify your input using various ML and NLP models.</p>
+  
+    <h1 class="display-5 fw-bold" style="color:#8B008B"> 🔍 Metin Sınıflandırması</h1>
+    <p class="text-center text-muted mb-4">Girdinizi çeşitli ML ve NLP modelleri kullanarak sınıflandırın.</p>
 
     <div class="row">
         <div class="col-md-6">
             <form asp-action="TextClassification" method="post">
                 <div class="mb-3">
-                    <label for="Text" class="form-label">Enter your text</label>
-                    <textarea asp-for="Text" class="form-control" rows="10" placeholder="Enter your text here..."></textarea>
+                    <label for="Text" class="form-label">Analiz Edilecek Metin</label>
+                    <textarea asp-for="Text" class="form-control" rows="10" placeholder="Analiz etmek istediğiniz metni buraya yapıştırın..."></textarea>
                     <span asp-validation-for="Text" class="text-danger"></span>
                 </div>
 
                 <div class="mb-3">
-                    <label for="SelectedModel" class="form-label">Choose a classification model</label>
+                    <label for="SelectedModel" class="form-label">Bir sınıflandırma modeli seçin</label>
                     <select asp-for="SelectedModel" class="form-select" asp-items="@(new SelectList(Model.AvailableModels))">
                     </select>
                 </div>
 
                 <div class="d-flex gap-2">
-                    <button type="button" class="btn btn-outline-secondary" onclick="clearText()">Clear</button>
-                    <button type="submit" class="btn btn-primary flex-grow-1">Submit</button>
+                    <button type="button" class="btn btn-outline-secondary" onclick="clearText()">Temizle</button>
+                    <button type="submit" class="btn btn-primary flex-grow-1">Analiz Et</button>
                 </div>
             </form>
         </div>
 
         <div class="col-md-6">
-            <h3>Predicted Label</h3>
+            <h3>Tahmin Edilen Etiket</h3>
             @if (Model.Result != null)
             {
                 <div class="card mt-3">
@@ -71,7 +72,7 @@
             else
             {
                 <div class="alert alert-info mt-3">
-                    Enter text and select a model to see predictions.
+                     Metin girin ve tahminleri görmek için bir model seçin
                 </div>
             }
         </div>

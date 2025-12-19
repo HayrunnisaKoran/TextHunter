@@ -1,80 +1,99 @@
-@model TextHunter.Models.ComparisonViewModel
+﻿@model TextHunter.Models.ComparisonViewModel
 @{
-    ViewData["Title"] = "Model Comparison";
+    ViewData["Title"] = "Model Karşılaştırma";
 }
 
-<div class="container mt-4">
-    <h1 class="text-center mb-4">Model Consistency Checker</h1>
-    <p class="text-center text-muted mb-4">See how each model classifies the same input text.</p>
+<div class="container mt-5">
+    <div class="text-center mb-5">
+        <h1 class="display-5 fw-bold" style="color:#8B008B"> 🔍 Model Karşılaştırma Merkezi</h1>
+        <p class="lead text-muted">Aynı metni 3 farklı yapay zeka modeli ile analiz edin ve sonuçları karşılaştırın.</p>
+    </div>
 
-    <div class="row">
-        <div class="col-md-6">
-            <form asp-action="ModelComparison" method="post">
-                <div class="mb-3">
-                    <label for="Text" class="form-label">Enter your text</label>
-                    <textarea asp-for="Text" class="form-control" rows="10" placeholder="Enter your text here..."></textarea>
-                    <span asp-validation-for="Text" class="text-danger"></span>
+    <div class="row g-4">
+        <div class="col-lg-5">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-header bg-white py-3">
+                    <h5 class="card-title mb-0 fw-bold">Analiz Edilecek Metin</h5>
                 </div>
+                <div class="card-body">
+                    <form asp-action="ModelComparison" method="post">
+                        <div class="mb-3">
+                            <textarea asp-for="Text" class="form-control border-0 bg-light" rows="12"
+                                      placeholder="Analiz etmek istediğiniz metni buraya yapıştırın..."></textarea>
+                            <span asp-validation-for="Text" class="text-danger small"></span>
+                        </div>
 
-                <div class="d-flex gap-2">
-                    <button type="button" class="btn btn-outline-secondary" onclick="clearText()">Clear</button>
-                    <button type="submit" class="btn btn-primary flex-grow-1">Submit</button>
+                        <div class="d-flex gap-2 mt-4">
+                            <button type="button" class="btn btn-outline-secondary px-4" onclick="clearText()">Temizle</button>
+                            <button type="submit" class="btn btn-primary flex-grow-1 fw-bold">Analiz Et (Tüm Modeller)</button>
+                        </div>
+                    </form>
                 </div>
-            </form>
+            </div>
         </div>
 
-        <div class="col-md-6">
-            <h3>Model Predictions</h3>
-            @if (Model.Results != null && Model.Results.Any())
-            {
-                <div class="table-responsive mt-3">
-                    <table class="table table-striped">
-                        <thead>
-                            <tr>
-                                <th>Model</th>
-                                <th>Prediction</th>
-                                <th>Human %</th>
-                                <th>AI %</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach (var result in Model.Results)
-                            {
-                                <tr>
-                                    <td>@result.Value.ModelName</td>
-                                    <td>
-                                        <span class="badge @(result.Value.Prediction == "Human" ? "bg-success" : "bg-danger")">
-                                            @result.Value.Prediction
-                                        </span>
-                                    </td>
-                                    <td>
-                                        <div class="progress" style="height: 20px; width: 100px;">
-                                            <div class="progress-bar bg-success" 
-                                                 style="width: @(result.Value.HumanProbability * 100)%">
-                                                @((result.Value.HumanProbability * 100).ToString("F1"))%
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td>
-                                        <div class="progress" style="height: 20px; width: 100px;">
-                                            <div class="progress-bar bg-danger" 
-                                                 style="width: @(result.Value.AIProbability * 100)%">
-                                                @((result.Value.AIProbability * 100).ToString("F1"))%
-                                            </div>
-                                        </div>
-                                    </td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
+        <div class="col-lg-7">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-header bg-white py-3">
+                    <h5 class="card-title mb-0 fw-bold">Model Tahminleri (US-5)</h5>
                 </div>
-            }
-            else
-            {
-                <div class="alert alert-info mt-3">
-                    Enter text and submit to see predictions from all models.
+                <div class="card-body">
+                    @if (Model.Results != null && Model.Results.Any())
+                    {
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Model Adı</th>
+                                        <th>Tahmin</th>
+                                        <th style="width: 40%;">Olasılık Dağılımı</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var result in Model.Results)
+                                    {
+                                        <tr>
+                                            <td class="fw-bold text-dark">@result.Value.ModelName</td>
+                                            <td>
+                                                <span class="badge rounded-pill p-2 px-3 @(result.Value.Prediction == "Human" ? "bg-success" : "bg-danger")">
+                                                    @(result.Value.Prediction == "Human" ? "👤 İnsan" : "🤖 Yapay Zeka")
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <div class="d-flex align-items-center gap-2">
+                                                    <div class="progress flex-grow-1" style="height: 24px; font-size: 0.75rem;">
+                                                        <div class="progress-bar bg-success" role="progressbar"
+                                                             style="width: @(result.Value.HumanProbability * 100)%"
+                                                             title="İnsan Olasılığı">
+                                                            %@((result.Value.HumanProbability * 100).ToString("F0"))
+                                                        </div>
+                                                        <div class="progress-bar bg-danger" role="progressbar"
+                                                             style="width: @(result.Value.AIProbability * 100)%"
+                                                             title="Yapay Zeka Olasılığı">
+                                                            %@((result.Value.AIProbability * 100).ToString("F0"))
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div class="d-flex justify-content-between x-small text-muted mt-1" style="font-size: 0.7rem;">
+                                                    <span>İnsan</span>
+                                                    <span>Yapay Zeka</span>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="text-center py-5">
+                            <img src="~/images/placeholder_ai.png" alt="Analiz Bekleniyor" class="img-fluid mb-3" style="max-width: 150px; opacity: 0.5;">
+                            <p class="text-muted">Sonuçları görmek için sol tarafa metin girip <strong>Analiz Et</strong> butonuna tıklayın.</p>
+                        </div>
+                    }
                 </div>
-            }
+            </div>
         </div>
     </div>
 </div>
@@ -86,4 +105,3 @@
         }
     </script>
 }
-
