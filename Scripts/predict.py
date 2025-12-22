@@ -9,8 +9,10 @@ import os
 import joblib
 import numpy as np
 
-# Model dizini
-MODEL_DIR = "../MLModels"
+# Model dizini - Script'in bulunduğu dizinden yola çıkarak MLModels klasörünü bul
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)  # Scripts/ klasöründen bir üst dizin (proje root)
+MODEL_DIR = os.path.join(PROJECT_ROOT, "MLModels")
 
 def load_model(model_name):
     """
