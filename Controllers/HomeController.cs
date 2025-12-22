@@ -120,15 +120,94 @@ namespace TextHunter.Controllers
 
         public IActionResult Profile()
         {
-            
-            
-            // İleride buraya veritabanından kullanıcı bilgilerini çekme kodu gelecek.
+            // Session'dan kullanıcı ID'sini kontrol et
+            var userId = HttpContext.Session.GetInt32("UserId");
+            if (!userId.HasValue)
+            {
+                TempData["ErrorMessage"] = "Profil sayfasına erişmek için giriş yapmanız gerekiyor.";
+                return RedirectToAction("Login");
+            }
+
             return View();
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> UpdateProfile(string FullName, string Email)
+        {
+            // Session'dan kullanıcı ID'sini al
+            var userId = HttpContext.Session.GetInt32("UserId");
+            if (!userId.HasValue)
+            {
+                TempData["ErrorMessage"] = "İşlem yapmak için giriş yapmanız gerekiyor.";
+                return RedirectToAction("Login");
+            }
+
+            // Input validasyonu
+            if (string.IsNullOrWhiteSpace(FullName))
+            {
+                ModelState.AddModelError("FullName", "Ad Soyad gereklidir.");
+            }
+            if (string.IsNullOrWhiteSpace(Email))
+            {
+                ModelState.AddModelError("Email", "E-posta gereklidir.");
+            }
+
+            if (!ModelState.IsValid)
+            {
+                return View("Profile");
+            }
+
+            // Veritabanından kullanıcıyı bul
+            var user = await _context.Users.FindAsync(userId.Value);
+            if (user == null)
+            {
+                TempData["ErrorMessage"] = "Kullanıcı bulunamadı.";
+                return RedirectToAction("Login");
+            }
+
+            // Email değiştiyse, başka bir kullanıcıda aynı email var mı kontrol et
+            if (user.Email != Email && _context.Users.Any(u => u.Email == Email && u.Id != userId.Value))
+            {
+                ModelState.AddModelError("Email", "Bu e-posta adresi zaten kullanımda.");
+                return View("Profile");
+            }
+
+            // Kullanıcı bilgilerini güncelle
+            user.FullName = FullName;
+            user.Email = Email;
+            
+            await _context.SaveChangesAsync();
+
+            // Session'ı güncelle
+            HttpContext.Session.SetString("UserFullName", FullName);
+            HttpContext.Session.SetString("UserEmail", Email);
+
+            TempData["SuccessMessage"] = "Profil bilgileriniz başarıyla güncellendi!";
+            return RedirectToAction("Profile");
         }
 
         public IActionResult Settings()
         {
             return View();
+        }
+
+        [HttpPost]
+        public IActionResult UpdateSettings(bool? DarkMode, bool? EmailNotifications)
+        {
+            // Session'dan kullanıcı ID'sini kontrol et
+            var userId = HttpContext.Session.GetInt32("UserId");
+            if (!userId.HasValue)
+            {
+                TempData["ErrorMessage"] = "Ayarları değiştirmek için giriş yapmanız gerekiyor.";
+                return RedirectToAction("Login");
+            }
+
+            // Ayarları session'a kaydet
+            HttpContext.Session.SetString("DarkMode", DarkMode == true ? "true" : "false");
+            HttpContext.Session.SetString("EmailNotifications", EmailNotifications == true ? "true" : "false");
+
+            TempData["SuccessMessage"] = "Ayarlarınız başarıyla kaydedildi!";
+            return RedirectToAction("Settings");
         }
 
         public IActionResult Privacy()
@@ -139,10 +218,6 @@ namespace TextHunter.Controllers
         public IActionResult Login()
         {
             return View();
-
-            // Giriş mantığı burada olacak (Veritabanı kontrolü vb.)
-            TempData["SuccessMessage"] = "Başarıyla giriş yaptınız!";
-            return RedirectToAction("Index");
         }
 
         [HttpPost]
@@ -191,9 +266,6 @@ namespace TextHunter.Controllers
         public IActionResult Register()
         {
             return View();
-            TempData["SuccessMessage"] = "Basariyla kayit yaptiniz!";
-            return RedirectToAction("Index");
-
         }
 
 

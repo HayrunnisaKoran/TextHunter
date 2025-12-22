@@ -82,14 +82,16 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="~/js/site.js" asp-append-version="true"></script>
     @await RenderSectionAsync("Scripts", required: false)
 
-    @if (TempData["SuccessMessage"] != null)
+    @{
+        // TempData'yı sadece bir kez oku ve hemen temizle
+        var successMessage = TempData["SuccessMessage"]?.ToString();
+    }
+    
+    @if (!string.IsNullOrEmpty(successMessage))
     {
-        // Mesajı bir değişkene al ve TempData'yı temizle (bir kez gösterilmesi için)
-        var successMessage = TempData["SuccessMessage"].ToString();
-        TempData.Remove("SuccessMessage"); // TempData'yı manuel olarak temizle
-        
         <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
         <script>
             // Türkçe karakter sorununu çözmek için JSON serialize kullanıyoruz

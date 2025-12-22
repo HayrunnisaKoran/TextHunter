@@ -13,26 +13,37 @@
                         <p class="text-muted">Hesap bilgilerinizi buradan yönetebilirsiniz.</p>
                     </div>
 
-                    <form>
-                        <div class="row g-3">
-                            <div class="col-md-6">
-                                <label class="form-label fw-bold">Ad Soyad</label>
-                                <input type="text" class="form-control bg-light" value="Yazılım Öğrencisi" readonly>
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label fw-bold">E-posta</label>
-                                <input type="email" class="form-control bg-light" value="ogrenci@university.edu.tr" readonly>
-                            </div>
-                            <div class="col-12">
-                                <label class="form-label fw-bold">Okul / Bölüm</label>
-                                <input type="text" class="form-control bg-light" value="Yazılım Mühendisliği - 3. Sınıf" readonly>
-                            </div>
-                        </div>
+                    @{
+                        var userId = Context.Session.GetInt32("UserId");
+                        var userFullName = Context.Session.GetString("UserFullName");
+                        var userEmail = Context.Session.GetString("UserEmail");
+                    }
 
-                        <div class="mt-4 d-grid">
-                            <button type="button" class="btn btn-primary btn-lg">Bilgileri Güncelle</button>
+                    @if (userId.HasValue)
+                    {
+                        <form asp-action="UpdateProfile" method="post">
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold">Ad Soyad</label>
+                                    <input type="text" name="FullName" class="form-control" value="@userFullName" required>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold">E-posta</label>
+                                    <input type="email" name="Email" class="form-control" value="@userEmail" required>
+                                </div>
+                            </div>
+
+                            <div class="mt-4 d-grid">
+                                <button type="submit" class="btn btn-primary btn-lg">Bilgileri Güncelle</button>
+                            </div>
+                        </form>
+                    }
+                    else
+                    {
+                        <div class="alert alert-warning">
+                            <p class="mb-0">Profil bilgilerinizi görmek için giriş yapmanız gerekiyor.</p>
                         </div>
-                    </form>
+                    }
                 </div>
             </div>
         </div>
