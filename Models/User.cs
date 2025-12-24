@@ -19,6 +19,6 @@ namespace TextHunter.Models
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
         // Bir kullanıcının birden fazla analizi olabilir (İlişkisel veritabanı mantığı)
-        public ICollection<PredictionResultEntity> Predictions { get; set; }
+        public virtual ICollection<PredictionResultEntity> Predictions { get; set; } = new List<PredictionResultEntity>();
     }
 }

@@ -1,7 +1,9 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Moq;
 using TextHunter.Controllers;
+using TextHunter.Data;
 using TextHunter.Models;
 using TextHunter.Services;
 using Xunit;
@@ -10,15 +12,43 @@ namespace TextHunter.Tests
 {
     public class HomeControllerTests
     {
-        private readonly Mock<ILogger<HomeController>> _mockLogger;
-        private readonly Mock<IModelPredictionService> _mockPredictionService;
+        private readonly Mock<ILogger<HomeController>> _mockLogger; //izole etme
+        private readonly Mock<IModelPredictionService> _mockPredictionService; //izole etme
+        private readonly Mock<IInputSanitizerService> _mockSanitizer;
+        private readonly Mock<AppDbContext> _mockContext;
         private readonly HomeController _controller;
 
         public HomeControllerTests()
         {
             _mockLogger = new Mock<ILogger<HomeController>>();
             _mockPredictionService = new Mock<IModelPredictionService>();
-            _controller = new HomeController(_mockLogger.Object, _mockPredictionService.Object);
+            _mockSanitizer = new Mock<IInputSanitizerService>();
+
+            //AppDbContexti mocklarken bos secenekler gonderýyoruz
+            var options = new DbContextOptionsBuilder<AppDbContext>()
+                .UseInMemoryDatabase(databaseName: "TestDb")
+                .Options;
+
+            _mockSanitizer.Setup(s => s.Sanitize(It.IsAny<string>()))
+                  .Returns((string input) => input);
+            _mockContext = new Mock<AppDbContext>(options);
+
+            // 2. DbContext'i mock'la (DbContextOptions gerektirebilir, en basit hali:)
+            _mockContext = new Mock<AppDbContext>(new DbContextOptions<AppDbContext>());
+
+            // 3. Üçüncü parametre olarak .Object'i ekle
+            //  _controller = new HomeController(_mockLogger.Object, _mockPredictionService.Object, _mockContext.Object);
+
+
+            
+            _controller = new HomeController(
+                _mockLogger.Object,
+                _mockPredictionService.Object,
+                _mockSanitizer.Object,
+                _mockContext.Object);
+
+
+
         }
 
         [Fact]
@@ -29,7 +59,7 @@ namespace TextHunter.Tests
 
             // Assert
             var viewResult = Assert.IsType<ViewResult>(result);
-            var model = Assert.IsType<ClassificationViewModel>(viewResult.Model);
+            var model = Assert.IsType<ClassificationViewModel>(viewResult.Model); //modelin tipine ve verisine bakýyoruz
             Assert.NotNull(model);
             Assert.True(model.AvailableModels.Count > 0);
         }
@@ -61,7 +91,7 @@ namespace TextHunter.Tests
 
             // Assert
             var viewResult = Assert.IsType<ViewResult>(result);
-            var model = Assert.IsType<ClassificationViewModel>(viewResult.Model);
+            var model = Assert.IsType<ClassificationViewModel>(viewResult.Model); //modelin tipine ve verisine bakýyoruz
             Assert.NotNull(model.Result);
             Assert.Equal("Human", model.Result.Prediction);
             Assert.Equal(0.75, model.Result.HumanProbability);

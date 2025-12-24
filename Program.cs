@@ -19,7 +19,7 @@ builder.Services.AddSession(options =>
 // ML Model Prediction Service
 builder.Services.AddScoped<IModelPredictionService, ModelPredictionService>();
 
-
+builder.Services.AddScoped<IInputSanitizerService, InputSanitizerService>();
 
 //veritabani baglantisi
 // ConnectionString'i al
