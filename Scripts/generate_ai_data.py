@@ -13,9 +13,16 @@ from datetime import datetime
 from tqdm import tqdm
 import google.generativeai as genai
 from typing import List, Dict
-from concurrent.futures import ThreadPoolExecutor
 import threading
 import random
+import sys
+import signal
+
+# Windows terminal encoding sorunu için
+if sys.platform == 'win32':
+    import codecs
+    sys.stdout = codecs.getwriter('utf-8')(sys.stdout.buffer, 'strict')
+    sys.stderr = codecs.getwriter('utf-8')(sys.stderr.buffer, 'strict')
 
 # Özel Exception sınıfı
 class QuotaExceededException(Exception):
@@ -23,24 +30,34 @@ class QuotaExceededException(Exception):
     pass
 
 # --- YAPILANDIRMA (KRİTİK AYARLAR) ---
-AI_COUNT = 3000
+# VAR OLAN HESAPLAR İÇİN: Günlük quota tükenmiş olabilir
+# Bu yüzden günlük küçük batch'ler halinde çekmek daha iyi
+AI_COUNT = 1000  # Mevcut AI verilerinin üzerine 1000 ek veri çekilecek
+# Günlük batch için: Her gün 50-100 veri çekmek daha güvenli
+# Ortam değişkeninden ayarlanabilir: $env:DAILY_BATCH_SIZE=50
+DAILY_BATCH_SIZE = int(os.getenv("DAILY_BATCH_SIZE", "50"))  # Günlük çekilecek veri sayısı
 OUTPUT_DIR = "../Data/raw"
 INPUT_FILE = os.path.join(OUTPUT_DIR, "human_abstracts.json")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 CHECKPOINT_FILE = os.path.join(OUTPUT_DIR, "ai_abstracts_checkpoint.json")
+DIVERSE_PROMPTS_FILE = os.path.join(OUTPUT_DIR, "diverse_prompts.csv")  # Çeşitli promptlar
 
 # OPTİMİZASYON AYARLARI
-# Yeni API anahtarı kullanıyorsanız daha hızlı toplama yapabilirsiniz
-MAX_WORKERS = 1  # 1 thread - kota limitlerini önlemek için (en güvenli)
+# Hızlı veri toplama için optimize edilmiş
+MAX_WORKERS = 1  # 1 thread - quota korunması için (güvenli)
+# Not: 2 worker yaparsanız daha hızlı olur ama quota 2x hızla tükenir
 CHECKPOINT_INTERVAL = 10 # Veri kaybını önlemek için daha sık kayıt
 
-# HIZ AYARLARI (Yeni API anahtarı için optimize edildi)
+# HIZ AYARLARI (Optimize edilmiş - daha hızlı veri toplama)
 # Gemini API limitleri: ~15 istek/dakika (ücretsiz), ~60 istek/dakika (ücretli)
-# Güvenli değer: 10 saniye (6 istek/dakika) - quota limitinden uzak kalır
-# Agresif değer: 5 saniye (12 istek/dakika) - daha hızlı ama riskli
-MIN_REQUEST_INTERVAL = 10.0  # 10 saniye (yeni API için güvenli ve hızlı)
-# Eğer hala quota hatası alırsanız: 15.0 veya 20.0 yapın
-# Eğer hiç hata almıyorsanız: 5.0 veya 7.0'ye düşürebilirsiniz 
+# HIZLI VERİ TOPLAMA İÇİN: Daha agresif ama güvenli ayar
+# - 12 saniye = 5 istek/dakika (güvenli - önerilen)
+# - 10 saniye = 6 istek/dakika (orta risk - hızlı)
+# - 8 saniye = 7.5 istek/dakika (daha hızlı ama riskli)
+# 50 veri için: 10 saniye = ~8.3 dakika, 12 saniye = ~10 dakika
+MIN_REQUEST_INTERVAL = 12.0  # 12 saniye (5 istek/dakika - hızlı ama güvenli)
+# Not: Script otomatik olarak quota hatası durumunda 5 dakika bekleyip tekrar deneyecek
+# Eğer quota hatası alırsanız, bu değeri 15.0 veya 20.0 yapabilirsiniz 
 
 def load_human_abstracts() -> List[Dict]:
     if not os.path.exists(INPUT_FILE):
@@ -53,8 +70,37 @@ def load_human_abstracts() -> List[Dict]:
     print(f"✓ {len(human_data)} adet human verisi yüklendi")
     return human_data
 
+def load_diverse_prompts() -> List[str]:
+    """
+    Çeşitli konulardan promptları yükler.
+    Eğer diverse_prompts.csv yoksa, eski AI/ML promptlarını kullanır.
+    """
+    if os.path.exists(DIVERSE_PROMPTS_FILE):
+        try:
+            df = pd.read_csv(DIVERSE_PROMPTS_FILE)
+            prompts = df['prompt'].tolist()
+            print(f"✓ {len(prompts)} adet çeşitli prompt yüklendi (diverse_prompts.csv'den)")
+            print(f"  Konu dağılımı: {df['category'].value_counts().to_dict()}")
+            return prompts
+        except Exception as e:
+            print(f"⚠ diverse_prompts.csv yüklenirken hata: {e}")
+            print("  Eski AI/ML promptları kullanılacak.")
+    
+    # Fallback: Eski AI/ML promptları
+    print("⚠ diverse_prompts.csv bulunamadı, eski promptlar kullanılıyor.")
+    print("  Önce create_diverse_prompts.py scriptini çalıştırın!")
+    return [
+        "Write a detailed academic abstract about machine learning applications in natural language processing. 150-300 words.",
+        "Write a comprehensive academic abstract about deep learning models for computer vision. 150-300 words.",
+        "Write an academic abstract about statistical methods in data science. 150-300 words.",
+        "Write a detailed academic abstract about neural network architectures for time series. 150-300 words.",
+        "Write a comprehensive academic abstract about reinforcement learning algorithms. 150-300 words.",
+        "Write an academic abstract about transformer models and LLMs. 150-300 words.",
+        "Write a detailed academic abstract about unsupervised learning clustering. 150-300 words."
+    ]
+
 def generate_single_ai_text(model, prompt: str, lock: threading.Lock, last_request_time: List[float], 
-                            min_interval: float) -> Dict:
+                            min_interval: float) -> Dict | None:
     """
     Tek bir AI metni üretir. Hata durumunda üstel bekleme (Exponential Backoff) uygular.
     """
@@ -68,16 +114,30 @@ def generate_single_ai_text(model, prompt: str, lock: threading.Lock, last_reque
                 current_time = time.time()
                 time_since_last = current_time - last_request_time[0]
                 
-                # Eğer son istekten beri yeterince zaman geçmediyse bekle
-                if time_since_last < min_interval:
+                # İlk istek için özel kontrol (last_request_time[0] == 0.0 ise)
+                if last_request_time[0] == 0.0:
+                    # İlk istek - direkt yap, bekleme yok
+                    last_request_time[0] = current_time
+                    print(f"\n[DEBUG] İlk API isteği yapılıyor (bekleme yok)...")
+                elif time_since_last < min_interval:
+                    # Sonraki istekler için bekleme
                     sleep_needed = min_interval - time_since_last
-                    time.sleep(sleep_needed)
-                
-                # İsteği yapmadan hemen önce zamanı güncelle
-                last_request_time[0] = time.time()
+                    if sleep_needed > 0:
+                        print(f"[DEBUG] Rate limiting: {sleep_needed:.1f} saniye bekleniyor...")
+                        time.sleep(sleep_needed)
+                    last_request_time[0] = time.time()
+                else:
+                    # Yeterince zaman geçti, direkt yap
+                    last_request_time[0] = current_time
 
-            # API çağrısı
+            # API çağrısı - Basit yaklaşım (timeout olmadan, hata yakalama ile)
+            print(f"[DEBUG] API isteği gönderiliyor (deneme {attempt + 1}/{max_retries})...")
+            print(f"[DEBUG] Prompt uzunluğu: {len(prompt)} karakter")
+            
+            # API çağrısı - direkt yap, exception handling zaten var
             response = model.generate_content(prompt)
+            
+            print(f"[DEBUG] API yanıtı alındı! Response tipi: {type(response)}")
             
             if not response or not hasattr(response, 'text'):
                 raise ValueError("Boş yanıt")
@@ -87,6 +147,10 @@ def generate_single_ai_text(model, prompt: str, lock: threading.Lock, last_reque
             # Basit kalite kontrolü
             if len(generated_text) < 50:
                 raise ValueError("Çok kısa metin")
+
+            # DEBUG: Başarılı istek
+            if attempt == 0:
+                print(f"[DEBUG] İlk istek başarılı! ({len(generated_text)} karakter)")
 
             return {
                 "text": generated_text,
@@ -98,29 +162,48 @@ def generate_single_ai_text(model, prompt: str, lock: threading.Lock, last_reque
 
         except Exception as e:
             error_msg = str(e).lower()
+            full_error = str(e)
             
             # 429 veya Quota hatası tespiti
             is_rate_limit = "429" in error_msg or "quota" in error_msg or "resource exhausted" in error_msg
             
+            # DEBUG: İlk istek hatası
+            if attempt == 0:
+                print(f"\n[DEBUG] İlk istek hatası: {full_error[:100]}")
+            
             if attempt < max_retries - 1:
                 if is_rate_limit:
-                    # Quota hatası alındı - özel exception fırlat
-                    raise QuotaExceededException("API quota limiti aşıldı")
+                    # Quota hatası - çok uzun bekleyip tekrar dene (2 gün içinde bitirmek için)
+                    # Belki quota reset olmuştur veya geçici bir sorundur
+                    wait_time = 300 + (attempt * 60)  # 5 dakika + her denemede 1 dakika daha
+                    print(f"\n⚠ Quota hatası - {int(wait_time/60)} dakika bekleniyor (quota reset olabilir)...")
+                    print(f"   [DEBUG] Deneme {attempt + 1}/{max_retries}")
+                    time.sleep(wait_time)
+                    continue  # Tekrar dene, exception fırlatma
                 else:
                     # Diğer hatalar için daha kısa bekleme
                     wait_time = (base_wait_time * (2 ** attempt)) + random.uniform(0, 2)
                     wait_time = min(wait_time, 30)  # Max 30 saniye
-                    print(f"\n⚠ Hata: {str(e)[:50]}... - {int(wait_time)}sn bekleniyor.")
+                    print(f"\n⚠ Hata: {full_error[:50]}... - {int(wait_time)}sn bekleniyor.")
+                    print(f"   [DEBUG] Deneme {attempt + 1}/{max_retries}")
                 
                 time.sleep(wait_time)
                 continue
             
+            # Tüm denemeler başarısız
+            print(f"\n[DEBUG] Tüm denemeler başarısız oldu. Son hata: {full_error[:100]}")
             return None # Tüm denemeler başarısız
     return None
 
 def generate_ai_texts(count: int = 3000, api_key: str = "", max_workers: int = 2) -> List[Dict]:
     if not api_key:
         print("❌ HATA: GEMINI_API_KEY eksik!")
+        print("\n📋 API Key'i ayarlamak için:")
+        print("   PowerShell: $env:GEMINI_API_KEY = 'ANAHTARINIZ'")
+        print("   CMD: set GEMINI_API_KEY=ANAHTARINIZ")
+        print("\n💡 Yeni API key almak için:")
+        print("   https://aistudio.google.com/app/apikey")
+        print("\n⚠ Script API key olmadan çalışamaz!")
         return []
     
     print(f"\n{'='*60}")
@@ -143,14 +226,15 @@ def generate_ai_texts(count: int = 3000, api_key: str = "", max_workers: int = 2
     except Exception as e:
         print(f"⚠ Model listesi alınamadı: {str(e)[:100]}")
     
-    # Öncelik sıralaması - önce güncel modeller, sonra eski modeller
+    # Öncelik sıralaması - Eski modelleri önce dene (daha az quota kullanabilir)
+    # 2 gün içinde bitirmek için daha stabil modelleri tercih ediyoruz
     priority_models = [
-        'gemini-2.5-flash',      # En yeni ve hızlı
+        'gemini-1.5-flash',       # Eski ama stabil, daha az quota kullanabilir
+        'gemini-1.5-pro',         # Eski Pro, stabil
         'gemini-2.0-flash',       # 2.0 Flash
-        'gemini-2.5-pro',         # En yeni Pro
+        'gemini-2.5-flash',       # En yeni ve hızlı (daha fazla quota kullanabilir)
         'gemini-2.0-pro',         # 2.0 Pro
-        'gemini-1.5-flash',       # Eski ama stabil
-        'gemini-1.5-pro',         # Eski Pro
+        'gemini-2.5-pro',         # En yeni Pro
         'gemini-pro-latest',      # Latest versiyon
         'gemini-pro'              # Genel
     ]
@@ -178,46 +262,73 @@ def generate_ai_texts(count: int = 3000, api_key: str = "", max_workers: int = 2
     selected_model_name = ""
     
     print("Uygun model aranıyor...")
-    for m_name in model_to_try:
-        try:
-            temp_model = genai.GenerativeModel(m_name)
-            # Test isteği
-            test_response = temp_model.generate_content("Hi")
-            if test_response and hasattr(test_response, 'text'):
+    print("NOT: Test isteği yapılmıyor (quota korunması için), direkt kullanılacak model seçiliyor...")
+    
+    # Quota hatası durumunda bekleyip tekrar deneme
+    max_model_selection_retries = 3
+    retry_wait = 300  # 5 dakika
+    
+    for retry_attempt in range(max_model_selection_retries):
+        quota_error_count = 0
+        
+        for m_name in model_to_try:
+            try:
+                # Test isteği YAPMIYORUZ - direkt model oluşturuyoruz
+                # İlk gerçek istek generate_single_ai_text içinde yapılacak
+                temp_model = genai.GenerativeModel(m_name)
                 model = temp_model
                 selected_model_name = m_name
-                print(f"✓ Model seçildi: {selected_model_name}")
+                print(f"✓ Model seçildi: {selected_model_name} (test isteği yapılmadı, quota korundu)")
                 break
-        except Exception as e:
-            print(f"  - {m_name} kullanılamadı ({str(e)[:50]}...)")
+            except Exception as e:
+                error_msg = str(e).lower()
+                is_quota_error = "429" in str(e) or "quota" in error_msg or "resource exhausted" in error_msg
+                
+                if is_quota_error:
+                    quota_error_count += 1
+                    print(f"  - {m_name} quota hatası ({str(e)[:50]}...)")
+                else:
+                    print(f"  - {m_name} kullanılamadı ({str(e)[:50]}...)")
+                continue
+        
+        # Eğer model seçildiyse, döngüden çık
+        if model:
+            break
+        
+        # Eğer tüm modeller quota hatası veriyorsa, bekleyip tekrar dene
+        if quota_error_count > 0 and retry_attempt < max_model_selection_retries - 1:
+            print(f"\n⚠ Tüm modeller quota hatası veriyor. {int(retry_wait/60)} dakika bekleniyor...")
+            print(f"   (Deneme {retry_attempt + 1}/{max_model_selection_retries})")
+            time.sleep(retry_wait)
+            retry_wait *= 2  # Her denemede bekleme süresini 2x artır
             continue
             
     if not model:
-        print("❌ Hiçbir model çalıştırılamadı. API Key veya Kotanızı kontrol edin.")
-        print("\nÇözüm önerileri:")
-        print("1. API anahtarınızın geçerli olduğundan emin olun")
-        print("2. Mevcut modelleri görmek için: python list_gemini_models.py")
-        print("3. İnternet bağlantınızı kontrol edin")
+        print("\n❌ Hiçbir model seçilemedi. API Key veya Kotanızı kontrol edin.")
+        print("\n📋 ÇÖZÜM ÖNERİLERİ:")
+        print("   1. Birkaç saat bekleyin (quota genelde saatlik/günlük reset olur)")
+        print("   2. Google Cloud Console'dan quota durumunuzu kontrol edin")
+        print("   3. API planınızı yükseltmeyi düşünün")
+        print("   4. Yeni bir API key oluşturmayı deneyin")
+        print("\n💡 Script'i birkaç saat sonra tekrar çalıştırın, quota reset olmuş olabilir.")
         return []
 
-    # Prompt şablonları
-    prompts = [
-        "Write a detailed academic abstract about machine learning applications in natural language processing. 150-300 words.",
-        "Write a comprehensive academic abstract about deep learning models for computer vision. 150-300 words.",
-        "Write an academic abstract about statistical methods in data science. 150-300 words.",
-        "Write a detailed academic abstract about neural network architectures for time series. 150-300 words.",
-        "Write a comprehensive academic abstract about reinforcement learning algorithms. 150-300 words.",
-        "Write an academic abstract about transformer models and LLMs. 150-300 words.",
-        "Write a detailed academic abstract about unsupervised learning clustering. 150-300 words."
-    ]
+    # Çeşitli promptları yükle
+    prompts = load_diverse_prompts()
     
-    # Thread senkronizasyonu için
-    lock = threading.Lock()
-    last_request_time = [0.0] # List kullanarak referans ile geçiyoruz
+    # Eğer hedef sayıdan fazla prompt varsa, rastgele seç
+    if len(prompts) > count:
+        import random
+        prompts = random.sample(prompts, count)
+        print(f"✓ {count} adet prompt rastgele seçildi")
+    
+    # BASİT YAKLAŞIM: Thread pool yerine direkt döngü (daha stabil)
+    # Thread pool bazen takılıyor, bu yüzden basit döngü kullanıyoruz
     
     # Checkpoint yükle
     ai_texts = load_checkpoint()
-    start_index = len(ai_texts)
+    existing_count = len(ai_texts)
+    target_total = existing_count + count  # Toplam hedef
     
     # Duplicate kontrolü için mevcut metinleri set'e al (hızlı arama için)
     # Bu sayede yeni API key ile bile veri tekrarı olmaz
@@ -232,158 +343,150 @@ def generate_ai_texts(count: int = 3000, api_key: str = "", max_workers: int = 2
     if existing_texts:
         print(f"✓ {len(existing_texts)} adet mevcut veri duplicate kontrolü için hazırlandı")
     
-    print(f"\nBaşlangıç: {start_index}/{count}")
-    print(f"Worker Sayısı: {max_workers}")
+    print(f"\nMevcut AI verileri: {existing_count} adet")
+    print(f"Yeni eklenecek: {count} adet")
+    print(f"Toplam hedef: {target_total} adet")
     print(f"İstek Aralığı: {MIN_REQUEST_INTERVAL} saniye (Kotayı korumak için)")
+    print(f"\n⚠ BASİT MOD: Thread pool yerine direkt döngü kullanılıyor (daha stabil)")
     
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        from concurrent.futures import as_completed
+    # BASİT DÖNGÜ YAKLAŞIMI
+    new_added_count = 0
+    last_save_count = len(ai_texts)
+    last_request_time = 0.0
+    
+    with tqdm(total=count, initial=0, desc="Yeni AI Üretimi") as pbar:
+        prompt_idx = 0
+        retry_count = 0
+        max_retries_per_item = 3
         
-        future_to_idx = {}
-        retry_queue = []  # Başarısız olanları tekrar denemek için
-        completed_count = start_index
-        last_save_count = len(ai_texts)
-        
-        # İlk batch'i gönder (sadece worker sayısı kadar)
-        next_index = start_index
-        batch_size = max_workers * 2  # Her seferinde 2x worker kadar görev gönder
-        
-        def submit_batch(start_idx, end_idx):
-            """Bir batch görev gönder"""
-            for i in range(start_idx, min(end_idx, count)):
-                p_idx = i % len(prompts)
-                future = executor.submit(
-                    generate_single_ai_text, 
-                    model, 
-                    prompts[p_idx], 
-                    lock, 
-                    last_request_time, 
-                    MIN_REQUEST_INTERVAL
-                )
-                future_to_idx[future] = i
-        
-        # İlk batch'i gönder
-        submit_batch(next_index, next_index + batch_size)
-        next_index += batch_size
-        
-        # Sonuçları topla
-        quota_exceeded = False  # Quota hatası flag'i
-        with tqdm(total=count, initial=start_index, desc="AI Üretimi") as pbar:
-            while completed_count < count and not quota_exceeded:
-                # Tamamlanan görevleri kontrol et
-                for future in list(future_to_idx.keys()):
-                    if future.done():
-                        idx = future_to_idx.pop(future)
-                        try:
-                            result = future.result()
-                            
-                            if result:
-                                # Duplicate kontrolü - aynı metin zaten varsa ekleme
-                                # Bu sayede yeni API key ile bile veri tekrarı olmaz
-                                result_text = result.get('text', '').strip()
-                                if result_text and result_text not in existing_texts:
-                                    ai_texts.append(result)
-                                    existing_texts.add(result_text)  # Set'e ekle (gelecek kontroller için)
-                                    completed_count += 1
-                                    pbar.update(1)
-                                    
-                                    # Düzenli Kayıt
-                                    if len(ai_texts) - last_save_count >= CHECKPOINT_INTERVAL:
-                                        save_checkpoint(ai_texts)
-                                        last_save_count = len(ai_texts)
-                                        pbar.set_postfix({"Kaydedilen": len(ai_texts), "Başarısız": len(retry_queue)})
-                                else:
-                                    # Duplicate bulundu - retry queue'ya ekle (yeni veri üretmek için)
-                                    if result_text in existing_texts:
-                                        pbar.set_postfix({"Kaydedilen": len(ai_texts), "Duplicate": 1})
-                                    retry_queue.append(idx)
-                                    completed_count += 1
-                                    pbar.update(1)
-                            else:
-                                # Başarısız - retry queue'ya ekle
-                                retry_queue.append(idx)
-                                completed_count += 1
-                                pbar.update(1)
-                        except QuotaExceededException:
-                            # Quota hatası - tüm işlemi durdur
-                            quota_exceeded = True
-                            break
-                        except Exception as e:
-                            # Diğer hatalar - retry queue'ya ekle
-                            retry_queue.append(idx)
-                            completed_count += 1
+        while new_added_count < count:
+            # Prompt seç
+            current_prompt = prompts[prompt_idx % len(prompts)]
+            prompt_idx += 1
+            
+            # Rate limiting
+            current_time = time.time()
+            if last_request_time > 0:
+                time_since_last = current_time - last_request_time
+                if time_since_last < MIN_REQUEST_INTERVAL:
+                    sleep_needed = MIN_REQUEST_INTERVAL - time_since_last
+                    print(f"\n[DEBUG] Rate limiting: {sleep_needed:.1f} saniye bekleniyor...")
+                    time.sleep(sleep_needed)
+            else:
+                # İlk istek için özel mesaj
+                print(f"\n[DEBUG] İlk API isteği yapılıyor (bekleme yok)...")
+            
+            # API çağrısı - direkt yap
+            print(f"\n[DEBUG] İstek {new_added_count + 1}/{count} gönderiliyor...", flush=True)
+            print(f"[DEBUG] Prompt: {current_prompt[:50]}...", flush=True)
+            print(f"[DEBUG] Model: {selected_model_name}", flush=True)
+            
+            try:
+                request_start_time = time.time()
+                last_request_time = time.time()
+                
+                # API çağrısı - direkt (timeout problemi nedeni ile basit çağrı)
+                print(f"[DEBUG] API çağrısı başlatılıyor...", flush=True)
+                sys.stdout.flush()
+                sys.stderr.flush()
+                
+                try:
+                    response = model.generate_content(current_prompt)
+                except Exception as api_error:
+                    print(f"[DEBUG] API HATASI: {api_error}", flush=True)
+                    raise api_error
+                
+                request_duration = time.time() - request_start_time
+                print(f"[DEBUG] API yanıtı alındı! Süre: {request_duration:.2f} saniye", flush=True)
+                
+                if response and hasattr(response, 'text'):
+                    generated_text = response.text.strip()
+                    
+                    if len(generated_text) >= 50:
+                        # Duplicate kontrolü
+                        if generated_text not in existing_texts:
+                            result = {
+                                "text": generated_text,
+                                "label": "AI",
+                                "source": "gemini",
+                                "prompt": current_prompt,
+                                "generated_date": datetime.now().isoformat()
+                            }
+                            ai_texts.append(result)
+                            existing_texts.add(generated_text)
+                            new_added_count += 1
                             pbar.update(1)
+                            retry_count = 0  # Başarılı, retry sayacını sıfırla
+                            
+                            print(f"[DEBUG] ✓ Başarılı! ({len(generated_text)} karakter)")
+                            
+                            # Düzenli kayıt
+                            if len(ai_texts) - last_save_count >= CHECKPOINT_INTERVAL:
+                                save_checkpoint(ai_texts)
+                                last_save_count = len(ai_texts)
+                                print(f"[DEBUG] Checkpoint kaydedildi: {len(ai_texts)} adet")
+                        else:
+                            print(f"[DEBUG] ⚠ Duplicate bulundu, bir sonraki prompt'a geçiliyor...")
+                            retry_count = 0  # Duplicate için retry yok, direkt geç
+                            continue  # Bir sonraki prompt'a geç
+                    else:
+                        print(f"[DEBUG] ⚠ Çok kısa metin ({len(generated_text)} karakter), bir sonraki prompt'a geçiliyor...")
+                        retry_count = 0
+                        continue  # Bir sonraki prompt'a geç
+                else:
+                    print(f"[DEBUG] ⚠ Boş yanıt, bir sonraki prompt'a geçiliyor...")
+                    retry_count = 0
+                    continue  # Bir sonraki prompt'a geç
+                    
+            except KeyboardInterrupt:
+                print(f"\n⚠ Script kullanıcı tarafından durduruldu!")
+                break
+            except Exception as e:
+                error_msg = str(e).lower()
+                full_error = str(e)
+                is_rate_limit = "429" in error_msg or "quota" in error_msg or "resource exhausted" in error_msg
                 
-                if quota_exceeded:
-                    break
+                print(f"\n[DEBUG] Hata yakalandı: {full_error[:200]}")
+                print(f"[DEBUG] Hata tipi: {type(e).__name__}")
                 
-                # Retry queue'dan tekrar dene (boş slot varsa) - quota kontrolü ile
-                while retry_queue and len(future_to_idx) < batch_size and next_index < count and not quota_exceeded:
-                    idx = retry_queue.pop(0)
-                    p_idx = idx % len(prompts)
-                    future = executor.submit(
-                        generate_single_ai_text, 
-                        model, 
-                        prompts[p_idx], 
-                        lock, 
-                        last_request_time, 
-                        MIN_REQUEST_INTERVAL * 1.5  # Retry'da biraz daha uzun bekle
-                    )
-                    future_to_idx[future] = idx
-                
-                if quota_exceeded:
-                    break
-                
-                # Yeni batch gönder (boş slot varsa) - quota kontrolü ile
-                while len(future_to_idx) < batch_size and next_index < count and not quota_exceeded:
-                    p_idx = next_index % len(prompts)
-                    future = executor.submit(
-                        generate_single_ai_text, 
-                        model, 
-                        prompts[p_idx], 
-                        lock, 
-                        last_request_time, 
-                        MIN_REQUEST_INTERVAL
-                    )
-                    future_to_idx[future] = next_index
-                    next_index += 1
-                
-                # Kısa bekleme (CPU kullanımını azaltmak için)
-                if not future_to_idx:
-                    break
-                time.sleep(0.1)
-
-    # Quota hatası kontrolü
-    if quota_exceeded:
-        # Final kayıt (mevcut verileri kaydet)
-        if len(ai_texts) > last_save_count:
-            save_checkpoint(ai_texts)
-        
-        print(f"\n{'='*60}")
-        print("❌ API QUOTA LİMİTİ AŞILMIŞ - İŞLEM DURDURULDU")
-        print(f"{'='*60}")
-        print("\n⚠ API quota limitiniz aşılmış görünüyor.")
-        print("   Bu durumda script çalışmaya devam edemez.")
-        print("\n📋 ÇÖZÜM ÖNERİLERİ:")
-        print("   1. Birkaç saat bekleyin (quota genelde saatlik/günlük reset olur)")
-        print("   2. Google Cloud Console'dan quota durumunuzu kontrol edin")
-        print("   3. API planınızı yükseltmeyi düşünün")
-        print(f"\n💾 MEVCUT DURUM:")
-        print(f"   - Toplanan veri: {len(ai_texts)} adet")
-        print(f"   - Checkpoint dosyası: {CHECKPOINT_FILE}")
-        print(f"   - Veriler güvende, quota reset olduktan sonra kaldığı yerden devam edebilirsiniz")
-        print(f"\n{'='*60}\n")
-        return ai_texts  # Mevcut verileri döndür
+                if is_rate_limit:
+                    # Quota hatası - hata mesajından retry_delay'i çıkarmaya çalış
+                    wait_time = 300  # Varsayılan 5 dakika
+                    if "retry_delay" in full_error or "retry in" in full_error.lower():
+                        # Hata mesajından saniye bilgisini çıkarmaya çalış
+                        import re
+                        retry_match = re.search(r'retry in ([\d.]+)s', full_error.lower())
+                        if retry_match:
+                            wait_time = max(int(float(retry_match.group(1))), 60)  # En az 60 saniye
+                    
+                    print(f"\n⚠ QUOTA HATASI TESPİT EDİLDİ!")
+                    print(f"   Hata: {full_error[:150]}...")
+                    print(f"   {int(wait_time/60)} dakika ({wait_time} saniye) bekleniyor...")
+                    print(f"   💡 Quota genelde günlük reset olur (gece yarısı UTC)")
+                    print(f"   💡 Alternatif: Yeni bir API key oluşturun")
+                    time.sleep(wait_time)
+                    retry_count = 0  # Quota hatası sonrası retry sayacını sıfırla, tekrar dene
+                    continue  # Aynı prompt'u tekrar dene
+                else:
+                    retry_count += 1
+                    if retry_count >= max_retries_per_item:
+                        print(f"[DEBUG] ⚠ Bu prompt için {max_retries_per_item} deneme yapıldı, bir sonraki prompt'a geçiliyor...")
+                        retry_count = 0
+                        continue  # Bir sonraki prompt'a geç
+                    wait_time = min(5 * (2 ** retry_count), 30)
+                    print(f"⚠ Hata - {wait_time}sn bekleniyor (retry {retry_count}/{max_retries_per_item})...")
+                    time.sleep(wait_time)
+                    continue  # Aynı prompt'u tekrar dene
     
     # Final kayıt
     if len(ai_texts) > last_save_count:
         save_checkpoint(ai_texts)
     
-    print(f"\n✓ Toplam {len(ai_texts)} AI metni üretildi.")
-    if len(ai_texts) < count:
-        print(f"⚠ Hedef: {count}, Üretilen: {len(ai_texts)} (Fark: {count - len(ai_texts)})")
-        if retry_queue:
-            print(f"⚠ {len(retry_queue)} istek başarısız oldu ve retry edilemedi.")
+    print(f"\n✓ Mevcut AI verileri: {existing_count} adet")
+    print(f"✓ Yeni eklenen AI verileri: {new_added_count} adet")
+    print(f"✓ Toplam AI verileri: {len(ai_texts)} adet")
+    if new_added_count < count:
+        print(f"⚠ Hedef: {count} yeni veri, Eklenen: {new_added_count} (Fark: {count - new_added_count})")
     
     return ai_texts
 
@@ -444,7 +547,7 @@ def load_checkpoint() -> List[Dict]:
         try:
             import pandas as pd
             df = pd.read_csv(combined_csv)
-            ai_data = df[df['label'] == 'AI'].to_dict('records')
+            ai_data = df[df['label'] == 'AI'].to_dict(orient='records')
             if ai_data:
                 # CSV'den gelen verileri JSON formatına çevir
                 formatted_data = []
@@ -477,44 +580,92 @@ def main():
     # 1. Human verilerini kontrol et
     human_abstracts = load_human_abstracts()
     if not human_abstracts:
-        return
-
-    # 2. AI Verisi Üret
-    ai_texts = generate_ai_texts(AI_COUNT, GEMINI_API_KEY, MAX_WORKERS)
+        print("⚠ Human verileri bulunamadı, sadece AI verileri üretilecek.")
     
-    # 3. AI verilerini ayrı dosyaya kaydet (her zaman)
-    if ai_texts:
+    # 2. Mevcut AI verilerini yükle (checkpoint'ten)
+    existing_ai_texts = load_checkpoint()
+    existing_count = len(existing_ai_texts)
+    
+    # 3. Günlük batch boyutunu hesapla
+    # Eğer günlük batch kullanılıyorsa, kalan veriye göre ayarla
+    remaining_needed = AI_COUNT - (existing_count - 3000)  # 3000 = başlangıç sayısı
+    if remaining_needed < 0:
+        remaining_needed = 0
+    
+    # Günlük batch boyutunu kullan (eğer ayarlanmışsa)
+    daily_batch = DAILY_BATCH_SIZE if DAILY_BATCH_SIZE < AI_COUNT else AI_COUNT
+    target_count = min(daily_batch, remaining_needed) if remaining_needed > 0 else daily_batch
+    
+    if existing_count > 0:
+        print(f"\n✓ Mevcut AI verileri: {existing_count} adet")
+        if DAILY_BATCH_SIZE < AI_COUNT:
+            print(f"  Günlük batch modu: {target_count} adet çekilecek")
+            print(f"  Kalan: {remaining_needed} adet (birkaç güne yayılacak)")
+        else:
+            print(f"  Üzerine {AI_COUNT} adet yeni çeşitli AI verisi eklenecek")
+        print(f"  Toplam hedef: {existing_count + AI_COUNT} AI verisi")
+    else:
+        print(f"\n✓ Yeni AI verileri üretilecek: {target_count} adet")
+
+    # 4. Yeni AI Verisi Üret (mevcut verilerin üzerine ekle)
+    # generate_ai_texts zaten load_checkpoint() ile mevcut verileri yükleyip üzerine ekliyor
+    all_ai_texts = generate_ai_texts(target_count, GEMINI_API_KEY, MAX_WORKERS)
+    
+    # 4. AI verilerini kaydet
+    if all_ai_texts:
+        new_count = len(all_ai_texts) - existing_count
+        
         print(f"\n{'='*60}")
         print("AI VERİLERİ KAYDEDİLİYOR")
         print(f"{'='*60}\n")
-        save_data(ai_texts, "ai_abstracts")
+        print(f"Mevcut AI verileri: {existing_count} adet")
+        print(f"Yeni eklenen AI verileri: {new_count} adet")
+        print(f"Toplam AI verileri: {len(all_ai_texts)} adet")
         
-        # 4. Birleştirilmiş veri seti oluştur ve kaydet
-        print(f"\n{'='*60}")
-        print("BİRLEŞTİRİLMİŞ VERİ SETİ OLUŞTURULUYOR")
-        print(f"{'='*60}\n")
-        all_data = human_abstracts + ai_texts
-        save_data(all_data, "combined_dataset")
+        # AI verilerini kaydet
+        save_data(all_ai_texts, "ai_abstracts")
         
-        # 5. Temizlik - Sadece tüm işlem tamamlandığında checkpoint'i sil
-        if len(ai_texts) >= AI_COUNT:
+        # 5. Birleştirilmiş veri seti oluştur ve kaydet
+        if human_abstracts:
+            print(f"\n{'='*60}")
+            print("BİRLEŞTİRİLMİŞ VERİ SETİ OLUŞTURULUYOR")
+            print(f"{'='*60}\n")
+            all_data = human_abstracts + all_ai_texts
+            save_data(all_data, "combined_dataset")
+        
+        # 6. Temizlik - Sadece tüm işlem tamamlandığında checkpoint'i sil
+        total_new = len(all_ai_texts) - 3000  # 3000 = başlangıç sayısı
+        if total_new >= AI_COUNT:
             if os.path.exists(CHECKPOINT_FILE):
                 os.remove(CHECKPOINT_FILE)
-                print(f"\n✓ Checkpoint dosyası temizlendi (tüm veriler toplandı)")
+                print(f"\n✓ Checkpoint dosyası temizlendi (tüm yeni veriler toplandı)")
         else:
             print(f"\n⚠ Checkpoint dosyası korunuyor (kaldığı yerden devam için)")
-            print(f"   - Mevcut: {len(ai_texts)}/{AI_COUNT} AI verisi")
+            print(f"   - Bugün eklenen: {new_count} AI verisi")
+            print(f"   - Toplam yeni: {total_new}/{AI_COUNT} AI verisi")
+            if DAILY_BATCH_SIZE < AI_COUNT:
+                remaining = AI_COUNT - total_new
+                days_needed = (remaining + DAILY_BATCH_SIZE - 1) // DAILY_BATCH_SIZE  # Yuvarlama
+                print(f"   - Kalan: {remaining} veri (yaklaşık {days_needed} gün daha)")
             print(f"   - Checkpoint: {CHECKPOINT_FILE}")
+            print(f"\n💡 İPUCU: Yarın script'i tekrar çalıştırın, kaldığı yerden devam edecek!")
         
         # İstatistikler
         print(f"\n{'='*60}")
         print("TOPLAMA İSTATİSTİKLERİ")
         print("=" * 60)
-        print(f"İnsan yazımı örnekler: {len(human_abstracts)}")
-        print(f"AI yazımı örnekler: {len(ai_texts)}")
-        print(f"Toplam örnek: {len(all_data)}")
+        if human_abstracts:
+            print(f"İnsan yazımı örnekler: {len(human_abstracts)}")
+        print(f"Mevcut AI örnekler: {existing_count}")
+        print(f"Yeni eklenen AI örnekler: {new_count}")
+        print(f"Toplam AI örnekler: {len(all_ai_texts)}")
+        if human_abstracts:
+            print(f"Toplam veri seti: {len(human_abstracts) + len(all_ai_texts)}")
+            print(f"Oran (Human:AI): {len(human_abstracts)}:{len(all_ai_texts)}")
         print(f"Veri seti kaydedildi: {OUTPUT_DIR}")
         print("=" * 60)
+    else:
+        print("\n⚠ Yeni AI verisi üretilemedi!")
 
 if __name__ == "__main__":
     main()
