@@ -1,0 +1,108 @@
+﻿@using System.Globalization
+@model TextHunter.Models.ComparisonViewModel
+@{
+    ViewData["Title"] = "Model Karşılaştırma";
+    string themeColor = "#8B008B";
+}
+
+<div class="container mt-5">
+    <div class="text-center mb-5">
+        <h1 class="display-5 fw-bold" style="color:#8B008B"> ⚔️ Model Karşılaştırma Merkezi</h1>
+        <p class="lead text-muted">Aynı metni 3 farklı yapay zeka modeli ile analiz edin ve sonuçları karşılaştırın.</p>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-lg-5">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-header bg-white py-3">
+                    <h5 class="card-title mb-0 fw-bold">Analiz Edilecek Metin</h5>
+                </div>
+                <div class="card-body">
+                    <form asp-action="ModelComparison" method="post">
+                        <div class="mb-3">
+                            <textarea asp-for="Text" class="form-control border-0 bg-light" rows="12"
+                                      placeholder="Analiz etmek istediğiniz metni buraya yapıştırın..."></textarea>
+                            <span asp-validation-for="Text" class="text-danger small"></span>
+                        </div>
+
+                        <div class="d-flex gap-2 mt-4">
+                            <button type="button" class="btn btn-outline-secondary px-4" onclick="clearText()">Temizle</button>
+                            <button type="submit" class="btn btn-primary flex-grow-1 fw-bold" style="background-color: #8B008B; border: none;">Analiz Et (Tüm Modeller)</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-7">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-header bg-white py-3">
+                    <h5 class="card-title mb-0 fw-bold">Model Tahminleri (US-5)</h5>
+                </div>
+                <div class="card-body">
+                    @if (Model.Results != null && Model.Results.Any())
+                    {
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Model Adı</th>
+                                        <th style="width: 60%;">Olasılık Dağılımı</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var result in Model.Results)
+                                    {
+                                        <tr>
+                                            <td class="fw-bold text-dark">@result.Value.ModelName</td>
+                                            <td>
+                                                @{
+                                                    // CSS uyumluluğu için InvariantCulture formatlama
+                                                    var humanProb = (result.Value.HumanProbability * 100).ToString("0", CultureInfo.InvariantCulture);
+                                                    var aiProb = (result.Value.AIProbability * 100).ToString("0", CultureInfo.InvariantCulture);
+                                                }
+                                                <div class="d-flex align-items-center gap-2">
+                                                    <div class="progress flex-grow-1" style="height: 28px; background-color: #f8f9fa; border: 1px solid #dee2e6;">
+                                                        <div class="progress-bar" role="progressbar"
+                                                             style="width: @humanProb%; background-color: @themeColor; opacity: 0.7; border-right: 1px solid white;"
+                                                             title="İnsan Olasılığı">
+                                                            %@humanProb İnsan
+                                                        </div>
+                                                        <div class="progress-bar" role="progressbar"
+                                                             style="width: @aiProb%; background-color: @themeColor;"
+                                                             title="Yapay Zeka Olasılığı">
+                                                            %@aiProb YZ
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div class="d-flex justify-content-between x-small text-muted mt-1" style="font-size: 0.75rem;">
+                                                    <span>Sol: İnsan</span>
+                                                    <span>Sağ: Yapay Zeka</span>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="text-center py-5">
+                            <img src="~/images/placeholder_ai.png" alt="Analiz Bekleniyor" class="img-fluid mb-3" style="max-width: 150px; opacity: 0.5;">
+                            <p class="text-muted">Sonuçları görmek için sol tarafa metin girip <strong>Analiz Et</strong> butonuna tıklayın.</p>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        function clearText() {
+            document.getElementById('Text').value = '';
+        }
+    </script>
+}

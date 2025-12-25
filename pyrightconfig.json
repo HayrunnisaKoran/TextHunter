@@ -1,0 +1,28 @@
+{
+  "include": [
+    "Scripts"
+  ],
+  "exclude": [
+    "**/node_modules",
+    "**/__pycache__",
+    "**/bin",
+    "**/obj"
+  ],
+  "pythonVersion": "3.13",
+  "pythonPlatform": "Windows",
+  "executionEnvironments": [
+    {
+      "root": "Scripts",
+      "pythonVersion": "3.13",
+      "pythonPlatform": "Windows",
+      "extraPaths": []
+    }
+  ],
+  "typeCheckingMode": "off",
+  "reportMissingImports": "none",
+  "reportMissingModuleSource": "none",
+  "reportGeneralTypeIssues": "none",
+  "reportOptionalMemberAccess": "none",
+  "reportOptionalSubscript": "none"
+}
+

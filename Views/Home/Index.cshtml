@@ -1,0 +1,45 @@
+﻿@{
+    ViewData["Title"] = "Ana Sayfa";
+}
+
+<div class="container py-5">
+    <div class="text-center mb-5 py-4 bg-light rounded-5 shadow-sm">
+        <h1 class="display-3 fw-bold" style="color:#8B008B">TextHunter</h1>
+        <p class="lead fs-4 text-muted">İnsan mı, Yapay Zeka mı? Saniyeler içinde öğrenin.</p>
+        <div class="d-flex justify-content-center gap-3 mt-4">
+            <a class="btn btn-primary btn-lg px-5 shadow" asp-controller="Home" asp-action="TextClassification">Hemen Analiz Et</a>
+            <a class="btn btn-outline-dark btn-lg px-5" asp-controller="Home" asp-action="ModelComparison">Modelleri Kıyasla</a>
+        </div>
+    </div>
+
+    <div class="row g-4 text-center mt-5">
+        <div class="col-md-4">
+            <div class="p-4 h-100 border rounded-4 shadow-hover">
+                <div class="fs-1 mb-3">🤖</div>
+                <h4 class="fw-bold">Gelişmiş Modeller</h4>
+                <p class="text-muted">Naive Bayes, Random Forest ve SVM algoritmaları ile en doğru tahminler.</p>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="p-4 h-100 border rounded-4 shadow-hover">
+                <div class="fs-1 mb-3">📊</div>
+                <h4 class="fw-bold">Detaylı Rapor</h4>
+                <p class="text-muted">Her model için ayrı ayrı yüzdelik ihtimal oranlarını görün.</p>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="p-4 h-100 border rounded-4 shadow-hover">
+                <div class="fs-1 mb-3">⚡</div>
+                <h4 class="fw-bold">Hızlı Sonuç</h4>
+                <p class="text-muted">6000'den fazla veri setiyle eğitilmiş modellerle anında sonuç alın.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .shadow-hover:hover {
+        box-shadow: 0 10px 20px rgba(0,0,0,0.1) !important;
+        transition: 0.3s;
+    }
+</style>

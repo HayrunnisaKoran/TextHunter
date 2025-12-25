@@ -1,0 +1,139 @@
+﻿<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - TextHunter</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+</head>
+<body>
+    <header>
+        <nav class="navbar navbar-expand-sm navbar-toggleable-sm navbar-dark bg-dark border-bottom box-shadow mb-3">
+            <div class="container-fluid">
+                <a class="navbar-brand" asp-area="" asp-controller="Home" asp-action="Index">🔍 TextHunter</a>
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target=".navbar-collapse" aria-controls="navbarSupportedContent"
+                        aria-expanded="false" aria-label="Toggle navigation">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+                <div class="navbar-collapse collapse d-sm-inline-flex justify-content-between">
+                    <ul class="navbar-nav flex-grow-1">
+                        <li class="nav-item">
+                            <a class="nav-link text-white" asp-controller="Home" asp-action="Index">Ana Sayfa</a>
+                        </li>
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle text-white" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                Analiz Araçları
+                            </a>
+                            <ul class="dropdown-menu" aria-labelledby="navbarDropdown">
+                                <li><a class="dropdown-item" asp-controller="Home" asp-action="TextClassification">Tekli Model</a></li>
+                                <li><a class="dropdown-item" asp-controller="Home" asp-action="ModelComparison">Model Karşılaştırma</a></li>
+                            </ul>
+                        </li>
+                    </ul>
+                    <ul class="navbar-nav ms-auto">
+                        @{
+                            // Session'dan kullanıcı ID'sini alarak giriş durumunu kontrol et [cite: 29, 30]
+                            var userId = Context.Session.GetInt32("UserId");
+                            var isUserLoggedIn = userId.HasValue && userId.Value > 0;
+                        }
+
+                        @if (isUserLoggedIn)
+                        {
+                            <li class="nav-item dropdown">
+                                <a class="nav-link dropdown-toggle text-white d-flex align-items-center" href="#" id="profileDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                    <div class="bg-secondary rounded-circle d-inline-flex align-items-center justify-content-center me-2" style="width: 30px; height: 30px;">
+                                        <span class="small">👤</span>
+                                    </div>
+                                    Hesabım
+                                </a>
+                                <ul class="dropdown-menu dropdown-menu-end shadow" aria-labelledby="profileDropdown">
+                                    <li><a class="dropdown-item" asp-controller="Home" asp-action="Profile">Profilim</a></li>
+                                    <li><a class="dropdown-item" asp-controller="Home" asp-action="Settings">Ayarlar</a></li>
+                                    <li><hr class="dropdown-divider"></li>
+                                    <li><a class="dropdown-item text-danger" asp-controller="Home" asp-action="Logout">Çıkış Yap</a></li>
+                                </ul>
+                            </li>
+                        }
+                                else
+                                {
+                                    <li class="nav-item">
+                                        <a class="btn btn-outline-light me-2" asp-controller="Home" asp-action="Login">Giriş Yap</a>
+                                    </li>
+                                    <li class="nav-item">
+                                        <a class="btn btn-primary" asp-controller="Home" asp-action="Register">Kayıt Ol</a>
+                                    </li>
+                                }
+                            </ul>
+                </div>
+            </div>
+        </nav>
+    </header>
+    <div class="container">
+        <main role="main" class="pb-3">
+            @RenderBody()
+        </main>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="~/js/site.js" asp-append-version="true"></script>
+    @await RenderSectionAsync("Scripts", required: false)
+
+    @{
+        // TempData'yı sadece bir kez oku ve hemen temizle
+        var successMessage = TempData["SuccessMessage"]?.ToString();
+    }
+    
+    @if (!string.IsNullOrEmpty(successMessage))
+    {
+        <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+        <script>
+            // Türkçe karakter sorununu çözmek için JSON serialize kullanıyoruz
+            var message = @Html.Raw(Json.Serialize(successMessage));
+            Swal.fire({
+                title: 'Başarılı!',
+                text: message,
+                icon: 'success',
+                confirmButtonText: 'Tamam',
+                customClass: {
+                    title: 'swal2-title-custom',
+                    content: 'swal2-content-custom',
+                    confirmButton: 'swal2-confirm-custom'
+                },
+                buttonsStyling: false,
+                confirmButtonClass: 'btn btn-lg btn-primary px-5 py-2'
+            });
+        </script>
+        <style>
+            .swal2-title {
+                font-size: 2rem !important;
+                font-weight: 700 !important;
+                color: #2c3e50 !important;
+                margin-bottom: 1rem !important;
+            }
+            .swal2-content {
+                font-size: 1.2rem !important;
+                font-weight: 500 !important;
+                color: #34495e !important;
+                line-height: 1.6 !important;
+            }
+            .swal2-confirm-custom {
+                font-size: 1.1rem !important;
+                font-weight: 600 !important;
+                padding: 0.75rem 2rem !important;
+                border-radius: 0.5rem !important;
+            }
+        </style>
+    }
+
+    <footer class="border-top footer text-muted bg-light mt-auto py-3">
+        <div class="container d-flex justify-content-between">
+            <span>&copy; 2025 - TextHunter - Tüm Hakları Saklıdır.</span>
+            <div>
+                <a asp-controller="Home" asp-action="Privacy" class="text-decoration-none me-3">Gizlilik Politikası</a>
+            </div>
+        </div>
+    </footer>
+
+</body>
+</html>

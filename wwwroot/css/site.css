@@ -1,0 +1,85 @@
+html {
+  font-size: 14px;
+}
+
+@media (min-width: 768px) {
+  html {
+    font-size: 16px;
+  }
+}
+
+.btn:focus, .btn:active:focus, .btn-link.nav-link:focus, .form-control:focus, .form-check-input:focus {
+  box-shadow: 0 0 0 0.1rem white, 0 0 0 0.25rem #258cfb;
+}
+
+html {
+  position: relative;
+  min-height: 100%;
+}
+
+body {
+  margin-bottom: 60px;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Karanlık Mod Stilleri */
+body.dark-mode {
+  background-color: #1a1a1a;
+  color: #e0e0e0;
+}
+
+body.dark-mode .container {
+  background-color: transparent;
+}
+
+body.dark-mode .card {
+  background-color: #2d2d2d;
+  border-color: #404040;
+  color: #e0e0e0;
+}
+
+body.dark-mode .card-body {
+  background-color: #2d2d2d;
+  color: #e0e0e0;
+}
+
+body.dark-mode .form-control {
+  background-color: #3a3a3a;
+  border-color: #505050;
+  color: #e0e0e0;
+}
+
+body.dark-mode .form-control:focus {
+  background-color: #3a3a3a;
+  border-color: #258cfb;
+  color: #e0e0e0;
+}
+
+body.dark-mode .list-group-item {
+  background-color: #2d2d2d;
+  border-color: #404040;
+  color: #e0e0e0;
+}
+
+body.dark-mode .text-muted {
+  color: #b0b0b0 !important;
+}
+
+body.dark-mode .bg-light {
+  background-color: #2d2d2d !important;
+}
+
+body.dark-mode .border {
+  border-color: #404040 !important;
+}
+
+body.dark-mode .alert-warning {
+  background-color: #4a3a00;
+  border-color: #6b5a00;
+  color: #ffc107;
+}
+
+body.dark-mode footer {
+  background-color: #1a1a1a !important;
+  border-top-color: #404040 !important;
+}
