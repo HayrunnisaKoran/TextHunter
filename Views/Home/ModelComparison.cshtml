@@ -1,11 +1,13 @@
-﻿@model TextHunter.Models.ComparisonViewModel
+﻿@using System.Globalization
+@model TextHunter.Models.ComparisonViewModel
 @{
     ViewData["Title"] = "Model Karşılaştırma";
+    string themeColor = "#8B008B";
 }
 
 <div class="container mt-5">
     <div class="text-center mb-5">
-        <h1 class="display-5 fw-bold" style="color:#8B008B"> 🔍 Model Karşılaştırma Merkezi</h1>
+        <h1 class="display-5 fw-bold" style="color:#8B008B"> ⚔️ Model Karşılaştırma Merkezi</h1>
         <p class="lead text-muted">Aynı metni 3 farklı yapay zeka modeli ile analiz edin ve sonuçları karşılaştırın.</p>
     </div>
 
@@ -25,7 +27,7 @@
 
                         <div class="d-flex gap-2 mt-4">
                             <button type="button" class="btn btn-outline-secondary px-4" onclick="clearText()">Temizle</button>
-                            <button type="submit" class="btn btn-primary flex-grow-1 fw-bold">Analiz Et (Tüm Modeller)</button>
+                            <button type="submit" class="btn btn-primary flex-grow-1 fw-bold" style="background-color: #8B008B; border: none;">Analiz Et (Tüm Modeller)</button>
                         </div>
                     </form>
                 </div>
@@ -45,8 +47,7 @@
                                 <thead class="table-light">
                                     <tr>
                                         <th>Model Adı</th>
-                                        <th>Tahmin</th>
-                                        <th style="width: 40%;">Olasılık Dağılımı</th>
+                                        <th style="width: 60%;">Olasılık Dağılımı</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -55,28 +56,28 @@
                                         <tr>
                                             <td class="fw-bold text-dark">@result.Value.ModelName</td>
                                             <td>
-                                                <span class="badge rounded-pill p-2 px-3 @(result.Value.Prediction == "Human" ? "bg-success" : "bg-danger")">
-                                                    @(result.Value.Prediction == "Human" ? "👤 İnsan" : "🤖 Yapay Zeka")
-                                                </span>
-                                            </td>
-                                            <td>
+                                                @{
+                                                    // CSS uyumluluğu için InvariantCulture formatlama
+                                                    var humanProb = (result.Value.HumanProbability * 100).ToString("0", CultureInfo.InvariantCulture);
+                                                    var aiProb = (result.Value.AIProbability * 100).ToString("0", CultureInfo.InvariantCulture);
+                                                }
                                                 <div class="d-flex align-items-center gap-2">
-                                                    <div class="progress flex-grow-1" style="height: 24px; font-size: 0.75rem;">
-                                                        <div class="progress-bar bg-success" role="progressbar"
-                                                             style="width: @(result.Value.HumanProbability * 100)%"
+                                                    <div class="progress flex-grow-1" style="height: 28px; background-color: #f8f9fa; border: 1px solid #dee2e6;">
+                                                        <div class="progress-bar" role="progressbar"
+                                                             style="width: @humanProb%; background-color: @themeColor; opacity: 0.7; border-right: 1px solid white;"
                                                              title="İnsan Olasılığı">
-                                                            %@((result.Value.HumanProbability * 100).ToString("F0"))
+                                                            %@humanProb İnsan
                                                         </div>
-                                                        <div class="progress-bar bg-danger" role="progressbar"
-                                                             style="width: @(result.Value.AIProbability * 100)%"
+                                                        <div class="progress-bar" role="progressbar"
+                                                             style="width: @aiProb%; background-color: @themeColor;"
                                                              title="Yapay Zeka Olasılığı">
-                                                            %@((result.Value.AIProbability * 100).ToString("F0"))
+                                                            %@aiProb YZ
                                                         </div>
                                                     </div>
                                                 </div>
-                                                <div class="d-flex justify-content-between x-small text-muted mt-1" style="font-size: 0.7rem;">
-                                                    <span>İnsan</span>
-                                                    <span>Yapay Zeka</span>
+                                                <div class="d-flex justify-content-between x-small text-muted mt-1" style="font-size: 0.75rem;">
+                                                    <span>Sol: İnsan</span>
+                                                    <span>Sağ: Yapay Zeka</span>
                                                 </div>
                                             </td>
                                         </tr>

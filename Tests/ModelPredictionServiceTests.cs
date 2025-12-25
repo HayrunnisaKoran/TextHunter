@@ -9,6 +9,7 @@ using Moq;
 using System.Text.Json;
 using TextHunter.Services;
 using Xunit;
+using Microsoft.AspNetCore.Hosting;
 
 namespace TextHunter.Tests
 {
@@ -29,10 +30,14 @@ namespace TextHunter.Tests
         [Fact]
         public async Task PredictMultipleModelsAsync_WhenPythonReturnsInvalidJson_ThrowsException()
         {
+            //test tarafına da env parametresını gonderıyoruz
+            var mockEnv = new Mock<IWebHostEnvironment>();
+            mockEnv.Setup(m => m.ContentRootPath).Returns("test_path");
+
             // ARRANGE (Hazırlık)
             // Bu servisi test ederken gerçek python'ı çalıştırmak yerine, 
             // bozuk çıktı verme durumunu simüle edeceğiz.
-            var service = new ModelPredictionService(_mockLogger.Object, _mockConfig.Object);
+            var service = new ModelPredictionService(_mockLogger.Object, _mockConfig.Object, mockEnv.Object);
 
             // NOT: ModelPredictionService içinde Process.Start doğrudan kullanıldığı için 
             // tam bir "Birim Test" (Unit Test) yapmak zordur. 

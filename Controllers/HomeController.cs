@@ -32,12 +32,9 @@ namespace TextHunter.Controllers
             {
                 AvailableModels = new List<string>
                 {
-                    "naive_bayes_bow",
-                    "naive_bayes_tfidf",
-                    "random_forest_bow",
-                    "random_forest_tfidf",
-                    "svm_bow",
-                    "svm_tfidf"
+                    "naive_bayes",
+                    "logistic_regression",
+                    "svm_model"
                 }
             };
             return View(model);
@@ -46,54 +43,49 @@ namespace TextHunter.Controllers
         [HttpPost]
         public async Task<IActionResult> TextClassification(ClassificationViewModel model)
         {
-
-            // ANALİZDEN ÖNCE TEMİZLİK YAP:
-            model.Text = _sanitizer.Sanitize(model.Text);
-
-            // Şimdi güvenli metni servise gönder
-            var result = await _predictionService.PredictAsync(model.Text, model.SelectedModel);
-
+            // 1. Boş metin kontrolünü en başta yapalım
             if (string.IsNullOrWhiteSpace(model.Text))
             {
                 ModelState.AddModelError("Text", "Lütfen bir metin girin.");
-                model.AvailableModels = new List<string>
-                {
-                    "naive_bayes_bow",
-                    "naive_bayes_tfidf",
-                    "random_forest_bow",
-                    "random_forest_tfidf",
-                    "svm_bow",
-                    "svm_tfidf"
-                };
+                model.AvailableModels = new List<string> { "naive_bayes", "logistic_regression", "svm_model" };
                 return View(model);
             }
 
+            // 2. Modelleri tekrar dolduralım (View için gerekli)
+            model.AvailableModels = new List<string> { "naive_bayes", "logistic_regression", "svm_model" };
+
             try
             {
-                model.Result = await _predictionService.PredictAsync(model.Text, model.SelectedModel);
-                model.AvailableModels = new List<string>
+                // 3. Metni temizle ve tahmini al
+                model.Text = _sanitizer.Sanitize(model.Text);
+                var result = await _predictionService.PredictAsync(model.Text, model.SelectedModel);
+                model.Result = result;
+
+                // 4. VERİTABANINA KAYIT İŞLEMİ
+                var userId = HttpContext.Session.GetInt32("UserId");
+                if (userId.HasValue) // Sadece giriş yapmış kullanıcılar için kaydet
                 {
-                    "naive_bayes_bow",
-                    "naive_bayes_tfidf",
-                    "random_forest_bow",
-                    "random_forest_tfidf",
-                    "svm_bow",
-                    "svm_tfidf"
-                };
+                    var predictionEntity = new PredictionResultEntity
+                    {
+                        InputText = model.Text,
+                        // Python'dan gelen AI/Human sonucunu alıyoruz
+                        Prediction = result.Prediction,
+                        ModelName = result.ModelName,
+                        HumanProbability = result.HumanProbability,
+                        AIProbability = result.AIProbability,
+                        UserId = userId.Value,
+                        AnalyzedAt = DateTime.UtcNow
+                    };
+
+                    _context.PredictionResults.Add(predictionEntity);
+                    await _context.SaveChangesAsync();
+                    _logger.LogInformation("Tahmin veritabanına başarıyla kaydedildi.");
+                }
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Tahmin yapılırken hata oluştu");
-                ModelState.AddModelError("", "Tahmin yapılırken bir hata oluştu. Lütfen tekrar deneyin.");
-                model.AvailableModels = new List<string>
-                {
-                    "naive_bayes_bow",
-                    "naive_bayes_tfidf",
-                    "random_forest_bow",
-                    "random_forest_tfidf",
-                    "svm_bow",
-                    "svm_tfidf"
-                };
+                ModelState.AddModelError("", "Tahmin sırasında bir sorun oluştu: " + ex.Message);
             }
 
             return View(model);

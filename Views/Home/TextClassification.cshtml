@@ -1,12 +1,15 @@
-﻿@model TextHunter.Models.ClassificationViewModel
+﻿@using System.Globalization
+@model TextHunter.Models.ClassificationViewModel
 @{
     ViewData["Title"] = "Text Classification";
+    // Başlıkta kullanılan mor renk
+    string themeColor = "#8B008B";
 }
 
 <div class="container mt-4">
-  
-    <h1 class="display-5 fw-bold" style="color:#8B008B"> 🔍 Metin Sınıflandırması</h1>
-    <p class="text-center text-muted mb-4">Girdinizi çeşitli ML ve NLP modelleri kullanarak sınıflandırın.</p>
+
+    <h1 class="display-5 fw-bold" style="color:@themeColor"> 🔍 Metin Sınıflandırması</h1>
+    <p class="text-center text-muted mb-4">Girdiğiniz makaleleri çeşitli ML modelleri kullanarak sınıflandırın.</p>
 
     <div class="row">
         <div class="col-md-6">
@@ -20,59 +23,80 @@
                 <div class="mb-3">
                     <label for="SelectedModel" class="form-label">Bir sınıflandırma modeli seçin</label>
                     <select asp-for="SelectedModel" class="form-select" asp-items="@(new SelectList(Model.AvailableModels))">
+                        <option value="" selected disabled>Model Seçiniz...</option>
                     </select>
+                    <span asp-validation-for="SelectedModel" class="text-danger"></span>
                 </div>
 
                 <div class="d-flex gap-2">
                     <button type="button" class="btn btn-outline-secondary" onclick="clearText()">Temizle</button>
-                    <button type="submit" class="btn btn-primary flex-grow-1">Analiz Et</button>
+                    <button type="submit" class="btn text-white flex-grow-1" style="background-color: @themeColor">Analiz Et</button>
                 </div>
             </form>
         </div>
 
         <div class="col-md-6">
             <h3>Tahmin Edilen Etiket</h3>
+
             @if (Model.Result != null)
             {
-                <div class="card mt-3">
+                <div class="card mt-3 shadow-sm">
                     <div class="card-body">
-                        <h5 class="card-title">@Model.Result.Prediction</h5>
-                        <div class="mt-3">
-                            <div class="mb-2">
-                                <strong>Human:</strong>
-                                <div class="progress" style="height: 25px;">
-                                    <div class="progress-bar bg-success" role="progressbar" 
-                                         style="width: @(Model.Result.HumanProbability * 100)%" 
-                                         aria-valuenow="@(Model.Result.HumanProbability * 100)" 
-                                         aria-valuemin="0" 
+                        <h2 class="card-title display-6 fw-bold mb-4" style="color: @themeColor">
+                            @Model.Result.Prediction
+                        </h2>
+
+                        <div class="mt-4">
+                            @{
+                                // Türkçe virgül sorununu çözmek için nokta ile formatlıyoruz
+                                var humanPercent = (Model.Result.HumanProbability * 100).ToString("0", CultureInfo.InvariantCulture);
+                                var aiPercent = (Model.Result.AIProbability * 100).ToString("0", CultureInfo.InvariantCulture);
+                            }
+
+                            <div class="mb-4">
+                                <div class="d-flex justify-content-between mb-1">
+                                    <strong>İnsan (Human):</strong>
+                                    <span>%@humanPercent</span>
+                                </div>
+                                <div class="progress" style="height: 30px; background-color: #e9ecef;">
+                                    <div class="progress-bar" role="progressbar"
+                                         style="width: @humanPercent%; background-color: @themeColor;"
+                                         aria-valuenow="@humanPercent"
+                                         aria-valuemin="0"
                                          aria-valuemax="100">
-                                        @((Model.Result.HumanProbability * 100).ToString("F2"))%
+                                        @humanPercent%
                                     </div>
                                 </div>
                             </div>
-                            <div>
-                                <strong>AI:</strong>
-                                <div class="progress" style="height: 25px;">
-                                    <div class="progress-bar bg-danger" role="progressbar" 
-                                         style="width: @(Model.Result.AIProbability * 100)%" 
-                                         aria-valuenow="@(Model.Result.AIProbability * 100)" 
-                                         aria-valuemin="0" 
+
+                            <div class="mb-3">
+                                <div class="d-flex justify-content-between mb-1">
+                                    <strong>Yapay Zeka (AI):</strong>
+                                    <span>%@aiPercent</span>
+                                </div>
+                                <div class="progress" style="height: 30px; background-color: #e9ecef;">
+                                    <div class="progress-bar" role="progressbar"
+                                         style="width: @aiPercent%; background-color: @themeColor;"
+                                         aria-valuenow="@aiPercent"
+                                         aria-valuemin="0"
                                          aria-valuemax="100">
-                                        @((Model.Result.AIProbability * 100).ToString("F2"))%
+                                        @aiPercent%
                                     </div>
                                 </div>
                             </div>
                         </div>
-                        <p class="text-muted mt-3 mb-0">
-                            <small>Model: @Model.Result.ModelName</small>
+
+                        <hr />
+                        <p class="text-muted mt-3 mb-0 text-end">
+                            <small>Kullanılan Model: <strong>@Model.Result.ModelName</strong></small>
                         </p>
                     </div>
                 </div>
             }
             else
             {
-                <div class="alert alert-info mt-3">
-                     Metin girin ve tahminleri görmek için bir model seçin
+                <div class="alert alert-light border mt-3" role="alert">
+                    👉 Metin girin ve tahminleri görmek için bir model seçip <strong>'Analiz Et'</strong> butonuna basın.
                 </div>
             }
         </div>
@@ -86,4 +110,3 @@
         }
     </script>
 }
-
