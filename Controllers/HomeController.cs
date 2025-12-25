@@ -9,13 +9,15 @@ namespace TextHunter.Controllers
 {
     public class HomeController : Controller
     {
+        private readonly IInputSanitizerService _sanitizer;
         private readonly ILogger<HomeController> _logger;
         private readonly IModelPredictionService _predictionService;
         private readonly AppDbContext _context;
-        public HomeController(ILogger<HomeController> logger, IModelPredictionService predictionService, AppDbContext context)
+        public HomeController(ILogger<HomeController> logger, IModelPredictionService predictionService, IInputSanitizerService sanitizer, AppDbContext context)
         {
             _logger = logger;
             _predictionService = predictionService;
+            _sanitizer = sanitizer;
             _context = context; // Veritabanı bağlantımız hazır!
         }
 
@@ -44,6 +46,13 @@ namespace TextHunter.Controllers
         [HttpPost]
         public async Task<IActionResult> TextClassification(ClassificationViewModel model)
         {
+
+            // ANALİZDEN ÖNCE TEMİZLİK YAP:
+            model.Text = _sanitizer.Sanitize(model.Text);
+
+            // Şimdi güvenli metni servise gönder
+            var result = await _predictionService.PredictAsync(model.Text, model.SelectedModel);
+
             if (string.IsNullOrWhiteSpace(model.Text))
             {
                 ModelState.AddModelError("Text", "Lütfen bir metin girin.");

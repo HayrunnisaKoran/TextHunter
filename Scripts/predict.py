@@ -14,9 +14,9 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)  # Scripts/ klasöründen bir üst dizin (proje root)
 MODEL_DIR = os.path.join(PROJECT_ROOT, "MLModels")
 
-def load_model(model_name):
+def load_model(model_name): 
     """
-    Model ve vectorizer'ı yükler
+    Model ve vectorizer'ı joblib ile yükler
     """
     model_path = os.path.join(MODEL_DIR, f"{model_name}_model.pkl")
     vectorizer_path = os.path.join(MODEL_DIR, f"{model_name}_vectorizer.pkl")
@@ -60,7 +60,7 @@ def predict_multiple_models(text):
     """
     Birden fazla model ile tahmin yapar (Tüm 6 model)
     """
-    # Kullanılacak tüm modeller (6 model)
+    # Kullanılacak tüm modeller (6 model) 
     models = [
         'naive_bayes_bow',
         'naive_bayes_tfidf',

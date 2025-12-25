@@ -51,12 +51,12 @@ namespace TextHunter.Services
         {
             var results = new Dictionary<string, PredictionResult>();
 
-            try
-            {
+            try //bu kod blogu sankı cmd uzerınden python predict.py "metın" komutunu yazıyormusuz gıbı yapar 
+            { 
                 // Python scriptini çalıştır
                 var processStartInfo = new ProcessStartInfo
                 {
-                    FileName = _pythonExecutable,
+                    FileName = _pythonExecutable, //calıstırılacak python exe yolu
                     Arguments = $"\"{_pythonScriptPath}\" \"{text.Replace("\"", "\\\"")}\"",
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
@@ -82,7 +82,7 @@ namespace TextHunter.Services
                 }
 
                 // JSON çıktısını parse et
-                var jsonResult = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(output);
+                var jsonResult = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(output); //test'e tabi
                 
                 if (jsonResult == null)
                 {
