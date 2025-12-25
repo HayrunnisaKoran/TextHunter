@@ -32,33 +32,29 @@
                         </li>
                     </ul>
                     <ul class="navbar-nav ms-auto">
-                        <li class="nav-item dropdown">
-                            <a class="nav-link dropdown-toggle text-white d-flex align-items-center" href="#" id="profileDropdown" role="button" data-bs-toggle="dropdown">
-                                <div class="bg-secondary rounded-circle d-inline-flex align-items-center justify-content-center me-2" style="width: 30px; height: 30px;">
-                                    <span class="small">👤</span>
-                                </div>
-                                Hesabım
-                            </a>
-                            <ul class="navbar-nav ms-auto">
-                                @{
-                                    // Session'dan kullanıcı ID'sini kontrol et
-                                    var userId = Context.Session.GetInt32("UserId");
-                                    var isUserLoggedIn = userId.HasValue && userId.Value > 0;
-                                }
+                        @{
+                            // Session'dan kullanıcı ID'sini alarak giriş durumunu kontrol et [cite: 29, 30]
+                            var userId = Context.Session.GetInt32("UserId");
+                            var isUserLoggedIn = userId.HasValue && userId.Value > 0;
+                        }
 
-                                @if (isUserLoggedIn)
-                                {
-                                    <li class="nav-item dropdown">
-                                        <a class="nav-link dropdown-toggle text-white d-flex align-items-center" href="#" id="profileDropdown" role="button" data-bs-toggle="dropdown">
-                                            Hesabım
-                                        </a>
-                                        <ul class="dropdown-menu dropdown-menu-end shadow">
-                                            <li><a class="dropdown-item" asp-action="Profile">Profilim</a></li>
-                                            <li><a class="dropdown-item" asp-action="Settings">Ayarlar</a></li>
-                                            <li><a class="dropdown-item text-danger" asp-action="Logout">Çıkış Yap</a></li>
-                                        </ul>
-                                    </li>
-                                }
+                        @if (isUserLoggedIn)
+                        {
+                            <li class="nav-item dropdown">
+                                <a class="nav-link dropdown-toggle text-white d-flex align-items-center" href="#" id="profileDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                    <div class="bg-secondary rounded-circle d-inline-flex align-items-center justify-content-center me-2" style="width: 30px; height: 30px;">
+                                        <span class="small">👤</span>
+                                    </div>
+                                    Hesabım
+                                </a>
+                                <ul class="dropdown-menu dropdown-menu-end shadow" aria-labelledby="profileDropdown">
+                                    <li><a class="dropdown-item" asp-controller="Home" asp-action="Profile">Profilim</a></li>
+                                    <li><a class="dropdown-item" asp-controller="Home" asp-action="Settings">Ayarlar</a></li>
+                                    <li><hr class="dropdown-divider"></li>
+                                    <li><a class="dropdown-item text-danger" asp-controller="Home" asp-action="Logout">Çıkış Yap</a></li>
+                                </ul>
+                            </li>
+                        }
                                 else
                                 {
                                     <li class="nav-item">
@@ -69,8 +65,6 @@
                                     </li>
                                 }
                             </ul>
-                        </li>
-                    </ul>
                 </div>
             </div>
         </nav>

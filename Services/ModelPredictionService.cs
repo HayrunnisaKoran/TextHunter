@@ -1,22 +1,25 @@
 using System.Diagnostics;
 using System.Text.Json;
 using TextHunter.Models;
+using Microsoft.AspNetCore.Hosting;
 
 namespace TextHunter.Services
 {
     public class ModelPredictionService : IModelPredictionService
     {
         private readonly ILogger<ModelPredictionService> _logger;
+        private readonly IWebHostEnvironment _env;
         private readonly string _pythonScriptPath;
         private readonly string _pythonExecutable;
 
-        public ModelPredictionService(ILogger<ModelPredictionService> logger, IConfiguration configuration)
+        public ModelPredictionService(ILogger<ModelPredictionService> logger, IConfiguration configuration, IWebHostEnvironment env )
         {
             _logger = logger;
+            _env = env;
             
             // Python script yolu
-            var basePath = Directory.GetCurrentDirectory();
-            _pythonScriptPath = Path.Combine(basePath, "Scripts", "predict.py");
+            
+            _pythonScriptPath = Path.Combine(_env.ContentRootPath, "Scripts", "predict.py");
             
             // Python executable yolu (varsayılan olarak python veya python3)
             _pythonExecutable = configuration["PythonExecutable"] ?? "python";
@@ -92,17 +95,14 @@ namespace TextHunter.Services
                 // Her model için sonuçları işle
                 foreach (var kvp in jsonResult)
                 {
-                    var modelName = kvp.Key;
                     var resultData = kvp.Value;
+                    var predictionResult = new PredictionResult { ModelName = kvp.Key };
 
-                    var predictionResult = new PredictionResult
+                    if (resultData.TryGetProperty("prediction", out var pred))
                     {
-                        ModelName = modelName
-                    };
-
-                    if (resultData.TryGetProperty("prediction", out var prediction))
-                    {
-                        predictionResult.Prediction = prediction.GetString() ?? "Unknown";
+                        string val = pred.ValueKind == JsonValueKind.Number ? pred.GetInt32().ToString() : pred.GetString();
+                        // 0 gelirse Yapay Zeka, 1 gelirse İnsan diyoruz
+                        predictionResult.Prediction = (val == "0" || val == "AI") ? "Yapay Zeka" : "İnsan";
                     }
 
                     if (resultData.TryGetProperty("probabilities", out var probabilities))
@@ -114,16 +114,12 @@ namespace TextHunter.Services
                         }
                         predictionResult.Probabilities = probDict;
 
-                        // Human ve AI olasılıklarını ayır
-                        predictionResult.HumanProbability = probDict.ContainsKey("Human") 
-                            ? probDict["Human"] 
-                            : 0.0;
-                        predictionResult.AIProbability = probDict.ContainsKey("AI") 
-                            ? probDict["AI"] 
-                            : 0.0;
+                        // Python'dan gelen ham rakam anahtarlarını ("0" ve "1") kullanıyoruz
+                        // Modeline göre: 0 = AI, 1 = Human
+                        predictionResult.HumanProbability = probDict.ContainsKey("1") ? probDict["1"] : 0.0;
+                        predictionResult.AIProbability = probDict.ContainsKey("0") ? probDict["0"] : 0.0;
                     }
-
-                    results[modelName] = predictionResult;
+                    results[kvp.Key] = predictionResult;
                 }
             }
             catch (Exception ex)

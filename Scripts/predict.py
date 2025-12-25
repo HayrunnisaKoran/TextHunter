@@ -9,52 +9,40 @@ import os
 import joblib
 import numpy as np
 
+
 # Model dizini - Script'in bulunduğu dizinden yola çıkarak MLModels klasörünü bul
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)  # Scripts/ klasöründen bir üst dizin (proje root)
 MODEL_DIR = os.path.join(PROJECT_ROOT, "MLModels")
 
-def load_model(model_name): 
-    """
-    Model ve vectorizer'ı joblib ile yükler
-    """
-    model_path = os.path.join(MODEL_DIR, f"{model_name}_model.pkl")
-    vectorizer_path = os.path.join(MODEL_DIR, f"{model_name}_vectorizer.pkl")
+def load_model(model_name):
+    mapping = {"svm_model": "svm_model.pkl", "logistic_regression": "logistic_regression.pkl", "naive_bayes": "naive_bayes.pkl"}
+    file_name = mapping.get(model_name, f"{model_name}.pkl")
+    model_path = os.path.join(MODEL_DIR, file_name)
+    vectorizer_path = os.path.join(MODEL_DIR, "tfidf_vectorizer.pkl")
     
-    if not os.path.exists(model_path) or not os.path.exists(vectorizer_path):
-        return None, None
+    if not os.path.exists(model_path): return None, None
+    return joblib.load(model_path), joblib.load(vectorizer_path)
+  
     
-    model = joblib.load(model_path)
-    vectorizer = joblib.load(vectorizer_path)
-    
-    return model, vectorizer
-
+   
 def predict_text(text, model_name):
-    """
-    Tek bir metin için tahmin yapar
-    """
     model, vectorizer = load_model(model_name)
+    if not model: return None
     
-    if model is None or vectorizer is None:
-        return None
-    
-    # Metni vectorize et
     text_vec = vectorizer.transform([text])
-    
-    # Tahmin yap
     prediction = model.predict(text_vec)[0]
+    prediction = str(prediction.item() if hasattr(prediction, "item") else prediction)
     
-    # Olasılıkları al (eğer model destekliyorsa)
     try:
-        probabilities = model.predict_proba(text_vec)[0]
-        prob_dict = dict(zip(model.classes_, probabilities))
+        probs = model.predict_proba(text_vec)[0]
+        # Ham rakamları (0 ve 1) anahtar olarak gönderiyoruz, C# bunları eşleştirecek
+        prob_dict = {str(cls): float(p) for cls, p in zip(model.classes_, probs)}
     except:
         prob_dict = {prediction: 1.0}
-    
-    return {
-        'prediction': prediction,
-        'probabilities': prob_dict
-    }
+
+    return {'prediction': prediction, 'probabilities': prob_dict}
+   
 
 def predict_multiple_models(text):
     """
@@ -62,12 +50,9 @@ def predict_multiple_models(text):
     """
     # Kullanılacak tüm modeller (6 model) 
     models = [
-        'naive_bayes_bow',
-        'naive_bayes_tfidf',
-        'random_forest_bow',
-        'random_forest_tfidf',
-        'svm_bow',
-        'svm_tfidf'
+        'naive_bayes',
+        'logistic_regression',
+        'svm_model'
     ]
     
     results = {}
@@ -80,16 +65,10 @@ def predict_multiple_models(text):
     return results
 
 if __name__ == "__main__":
-    # Komut satırından metin al
-    if len(sys.argv) < 2:
-        print(json.dumps({"error": "Metin parametresi gerekli"}))
-        sys.exit(1)
-    
-    text = sys.argv[1]
-    
-    # Birden fazla model ile tahmin yap
-    results = predict_multiple_models(text)
-    
-    # JSON olarak çıktı ver
-    print(json.dumps(results, ensure_ascii=False))
+    if len(sys.argv) < 2: sys.exit(1)
+    results = {}
+    for m in ['naive_bayes', 'logistic_regression', 'svm_model']:
+        res = predict_text(sys.argv[1], m)
+        if res: results[m] = res
+    print(json.dumps(results))
 
