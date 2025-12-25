@@ -23,7 +23,7 @@ Makale özetleri üzerinden metin tespiti yapan bir web uygulaması. Girilen met
 
 ## ✨ Özellikler
 
-- 🤖 **3 Farklı ML Modeli:** Naive Bayes, Random Forest, SVM
+- 🤖 **3 Farklı ML Modeli:** Naive Bayes,Logistic Regression , SVM
 - 📊 **Yüzdelik Tahmin:** Her model için Human/AI yüzde oranları
 - 🔄 **Çoklu Model Karşılaştırma:** Tüm modellerin sonuçlarını tek ekranda görme
 - 🌐 **Web Arayüzü:** Modern ve kullanıcı dostu ASP.NET Core MVC
@@ -115,23 +115,11 @@ Tarayıcıda: `https://localhost:5001` veya `http://localhost:5000`
 
 | Model | Vectorizer | Dosya |
 |-------|------------|-------|
-| Naive Bayes | BoW | `naive_bayes_bow_model.pkl` |
-| Naive Bayes | TF-IDF | `naive_bayes_tfidf_model.pkl` |
-| Random Forest | BoW | `random_forest_bow_model.pkl` |
-| Random Forest | TF-IDF | `random_forest_tfidf_model.pkl` |
-| SVM | BoW | `svm_bow_model.pkl` |
-| SVM | TF-IDF | `svm_tfidf_model.pkl` |
+| Naive Bayes | BoW | `naive_bayes.pkl` |
+| Logistic Regression | BoW | `logistic_regression.pkl` |
+| SVM | BoW | `svm_model.pkl` |
 
-### Performans Metrikleri
 
-Model eğitimi sonrası `MLModels/training_results.json` dosyasında:
-- Accuracy (Doğruluk)
-- Precision (Kesinlik)
-- Recall (Duyarlılık)
-- F1-Score
-- Confusion Matrix
-
----
 
 ## 📊 Veri Seti
 
@@ -159,12 +147,16 @@ text,label,source,arxiv_id,title,authors,published,license,collected_date,prompt
 1. **Ana Sayfa:** Proje hakkında bilgi
 2. **Text Classification:** Tek model ile metin sınıflandırma
 3. **Model Comparison:** Tüm modellerin karşılaştırmalı sonuçları
+4. **Profilim:** Kullanıcının isim, şifre ve e-posta bilgilerini güncellemesi seçenekleri
+5. **Ayarlar:** Uygulama temasını değiştirme ve e-posta bildirimi yönetimi
+6. **Giriş Sayfası:** Kayıtlı kullanıcı için giriş ekranı
+7. **Kayıt Sayfası:** Kayıtlı olmayan kullanıcı için kayıt sayfası
 
 ### Örnek Kullanım
 
 1. "Model Comparison" sayfasına gidin
 2. Analiz edilecek metni girin
-3. "Analyze" butonuna tıklayın
+3. "Analiz Et" butonuna tıklayın
 4. 3 farklı modelin Human/AI yüzde tahminlerini görün
 
 ---
@@ -180,45 +172,22 @@ dotnet test
 
 ### White Box Test Dokümantasyonu
 
-Detaylı test senaryoları için: `Documentation/WHITE_BOX_TESTLER.md`
-
+Tests klasöründe: 
+-AccountIntegrationTests.cs
+-DatabaseIntegrationTests.cs
+-HomeControllerTests.cs
+-ModelPredictionServiceTest.cs
+-SecurityIntegrationTests.cs
+test kodlarına ulaşılabilir
 ---
 
-## 📚 Dokümantasyon
-
-| Dosya | İçerik |
-|-------|--------|
-| [BENIM_GOREVLERIM.md](Documentation/BENIM_GOREVLERIM.md) | Veri toplama, temizleme ve model eğitimi görevleri |
-| [USER_STORY_1_DURUM.md](Documentation/USER_STORY_1_DURUM.md) | Veri seti toplama durumu |
-| [USER_STORY_2_3_4_DURUM.md](Documentation/USER_STORY_2_3_4_DURUM.md) | Diğer user story'lerin durumu |
-| [WHITE_BOX_TESTLER.md](Documentation/WHITE_BOX_TESTLER.md) | White box test senaryoları |
-| [SONARQUBE_ANALIZ.md](Documentation/SONARQUBE_ANALIZ.md) | Kod kalite analizi |
-| [UI_UX_TASARIM.md](Documentation/UI_UX_TASARIM.md) | Arayüz tasarım dökümanı |
-| [SOZLESME_YAZILIM_SARTNAMESI.md](Documentation/SOZLESME_YAZILIM_SARTNAMESI.md) | Yazılım şartnamesi |
-
----
 
 ## 👥 Ekip
 
 | Görev | Sorumluluklar |
 |-------|---------------|
-| **Kişi 1** | Veri Toplama, Veri Temizleme/EDA, Model Eğitimi, White Box Testler, Kod Kalite Analizi |
-| **Kişi 2** | Model Entegrasyonu, Arayüz (UI), Sonuç Gösterimi, Dokümantasyon Paketi, Test Cases |
-
----
-
-## 📄 User Stories
-
-| US | Açıklama | Puan |
-|----|----------|------|
-| US-1 | Veri Seti Toplama (6000 örnek) | 5 |
-| US-2 | Veri Temizleme | 5 |
-| US-3 | Model Eğitimi (3 farklı ML) | 10 |
-| US-4 | Model Entegrasyonu (Çoklu model desteği) | 10 |
-| US-5 | Sonuç Gösterimi (Yüzdelik oranlar) | 10 |
-| **Toplam** | | **40** |
-
-> ⚠️ Çoklu model desteği yoksa -5 puan!
+| **Hayrünnisa Koran** | Veri Toplama, Veri Temizleme/EDA, Model Eğitimi, Black Box Testler, SonarCube-Kod Kalite Analizi |
+| **Filiz Kalmış** | Model Entegrasyonu, Arayüz (UI), Sonuç Gösterimi, Dokümantasyon Paketi, White box testleri |
 
 ---
 
@@ -259,4 +228,4 @@ Bu proje MIT lisansı altında lisanslanmıştır. Detaylar için [LICENSE](LICE
 
 ---
 
-**📅 Son Güncelleme:** 17 Aralık 2025
+**📅 Son Güncelleme:** 25 Aralık 2025
